@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mseq</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        :root {
+            --main-width: 1024px;
+            --track-height: 30px;
+            --label-width: 50px;
+            --border-color: #000;
+            --bg-color: #fff;
+            --text-color: #000;
+            --highlight-color: #f0f0f0;
+            --playback-color: #f00;
+            --grid-color: #e0e0e0;
+            --white-key-color: #fff;
+            --black-key-color: #e0e0e0;
+            --note-color: rgba(0, 0, 0, 0.5);
+            --selected-note-color: rgba(255, 0, 0, 1);
+            --temp-note-color: rgba(0, 0, 255, 1);
+            --note-border-color: rgba(0, 0, 0, 1);
+            --note-right-border-color: rgba(100, 100, 100, 1);
+            --hover-cell-color: rgba(0, 0, 0, 0.1);
+            --border-radius: 4px;
+            --transition-speed: 0.3s;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            gap: 2px 0;
+            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        header {
+            padding: 15px 0;
+            margin: 0 auto;
+            text-align: left;
+            overflow: hidden;
+        }
+
+        h1 {
+            font-size: 12pt;
+            margin: auto;
+            padding-right: 56vw;
+        }
+
+        .container {
+            width: var(--main-width);
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+            box-shadow: 4px 4px 0px 4px var(--border-color);
+            image-rendering: pixelated;
+            border-radius: var(--border-radius);
+        }
+
+        #playbackBar,
+        #overviewPlaybackBar {
+            height: 20px;
+            background-color: var(--highlight-color);
+            cursor: pointer;
+            position: relative;
+        }
+
+        #overviewContainer {
+            height: 200px;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .overview-track {
+            height: var(--track-height);
+            position: relative;
+            border-bottom: 1px solid var(--border-color);
+            padding-left: 50px;
+        }
+
+        .note-resize-handle {
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 5px;
+            cursor: ew-resize;
+        }
+
+        .overview-track-label {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: var(--label-width);
+            height: 100%;
+            background-color: var(--highlight-color);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+
+        #playbackBar {
+            margin-left: var(--label-width);
+            width: calc(100% - var(--label-width));
+        }
+
+        #overviewPlaybackBar {
+            position: absolute;
+            top: 0;
+            left: var(--label-width);
+            right: 0;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .overview-playback-indicator {
+            position: absolute;
+            top: 0;
+            width: 2px;
+            height: 100%;
+            background-color: var(--playback-color);
+        }
+
+        .overview-track-content {
+            position: relative;
+        }
+
+        .track-playback-indicator {
+            position: absolute;
+            top: 0;
+            width: 2px;
+            height: 100%;
+            background-color: var(--playback-color);
+            pointer-events: none;
+        }
+
+        .viewport-indicator {
+            position: absolute;
+            border: 2px solid var(--border-color);
+            pointer-events: none;
+        }
+
+        .playback-indicator,
+        .overview-playback-indicator {
+            position: absolute;
+            width: 2px;
+            background-color: var(--playback-color);
+            pointer-events: none;
+        }
+
+        .delete-track-button {
+            position: absolute;
+            right: 5px;
+            top: 5px;
+            cursor: pointer;
+            background-color: var(--text-color);
+            color: var(--bg-color);
+            border: none;
+            padding: 2px 5px;
+            font-size: 10px;
+            z-index: 10;
+            border-radius: var(--border-radius);
+            transition: background-color var(--transition-speed);
+        }
+
+        #canvasContainer {
+            position: relative;
+            overflow: hidden;
+        }
+
+        #musicCanvas {
+            border: 1px solid var(--border-color);
+            background-image: linear-gradient(to bottom,
+                    var(--white-key-color) 0, var(--white-key-color) calc(100% / 12),
+                    var(--black-key-color) calc(100% / 12), var(--black-key-color) calc(200% / 12),
+                    var(--white-key-color) calc(200% / 12), var(--white-key-color) calc(300% / 12),
+                    var(--black-key-color) calc(300% / 12), var(--black-key-color) calc(400% / 12),
+                    var(--white-key-color) calc(400% / 12), var(--white-key-color) calc(500% / 12),
+                    var(--black-key-color) calc(500% / 12), var(--black-key-color) calc(600% / 12),
+                    var(--white-key-color) calc(600% / 12), var(--white-key-color) calc(700% / 12),
+                    var(--white-key-color) calc(700% / 12), var(--white-key-color) calc(800% / 12),
+                    var(--black-key-color) calc(800% / 12), var(--black-key-color) calc(900% / 12),
+                    var(--white-key-color) calc(900% / 12), var(--white-key-color) calc(1000% / 12),
+                    var(--black-key-color) calc(1000% / 12), var(--black-key-color) calc(1100% / 12),
+                    var(--white-key-color) calc(1100% / 12), var(--white-key-color) 100%);
+        }
+
+        #canvasPlaybackBar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 2px;
+            height: 100%;
+            background-color: var(--playback-color);
+            pointer-events: none;
+        }
+
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .controls button {
+            padding: 5px 10px;
+            background-color: var(--text-color);
+            color: var(--bg-color);
+            border: none;
+            cursor: pointer;
+            border-radius: var(--border-radius);
+            transition: background-color var(--transition-speed);
+        }
+
+        .controls button:hover {
+            opacity: 0.8;
+        }
+
+        .controls input[type="number"],
+        .controls input[type="range"] {
+            width: 60px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 5px;
+        }
+
+        .parameter-box {
+            margin-top: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background-color: var(--highlight-color);
+            padding: 10px;
+        }
+
+        .track-settings {
+            margin: 20px auto;
+            background-color: var(--highlight-color);
+            padding: 10px;
+        }
+
+        .parameter-box,
+        .track-settings {
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .track-settings h3 {
+            margin-top: 0;
+        }
+
+        .track-settings label {
+            display: inline-block;
+            width: 120px;
+        }
+
+        .track-settings input,
+        .track-settings select {
+            width: 100px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                width: 100%;
+            }
+
+            .controls {
+                flex-direction: column;
+            }
+
+            .controls button,
+            .controls input {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Mseq</h1>
+    </header>
+    <main>
+        <div class="container">
+            <div id="playbackBar"></div>
+            <div id="overviewContainer">
+                <div id="overviewPlaybackBar"></div>
+            </div>
+            <div id="canvasContainer">
+                <canvas id="musicCanvas" width="1024" height="192"></canvas>
+                <div id="canvasPlaybackBar"></div>
+            </div>
+        </div>
+        <div class="controls">
+            <button id="playButton">再生</button>
+            <button id="stopButton">停止</button>
+            <button id="loopButton">ループ</button>
+            <button id="clearButton">クリア</button>
+            <button id="undoButton">アンドゥ</button>
+            <button id="redoButton">リドゥ</button>
+            <button id="addTrackButton">トラック追加</button>
+            <label for="tempo">テンポ:</label>
+            <input type="number" id="tempo" value="120" min="60" max="300">
+            <label for="volume">音量:</label>
+            <input type="range" id="volume" min="0" max="1" step="0.1" value="0.5">
+        </div>
+        <div id="parameterBox" class="parameter-box">
+            <label for="pitch">音程:</label>
+            <input type="number" id="pitch" min="0" max="11">
+            <span id="pitchNameDisplay"></span>
+            <label for="octave">オクターブ:</label>
+            <input type="number" id="octave" min="0" max="8">
+            <label for="length">音長:</label>
+            <input type="number" id="length" min="1" max="24">
+            <button id="updateButton">更新</button>
+        </div>
+        <div class="track-settings">
+            <h3>トラック設定</h3>
+            <div>
+                <label for="waveform">波形:</label>
+                <select id="waveform">
+                    <option value="sine">サイン波</option>
+                    <option value="square">矩形波</option>
+                    <option value="sawtooth">のこぎり波</option>
+                    <option value="triangle">三角波</option>
+                    <option value="noise">ノイズ</option>
+                </select>
+            </div>
+            <div>
+                <label for="trackVolume">音量:</label>
+                <input type="number" id="trackVolume" value="0.79" min="0" max="1" step="0.01">
+            </div>
+            <div>
+                <label for="attack">Attack:</label>
+                <input type="number" id="attack" value="0.01" min="0" max="2" step="0.01">
+            </div>
+            <div>
+                <label for="decay">Decay:</label>
+                <input type="number" id="decay" value="0.1" min="0" max="2" step="0.01">
+            </div>
+            <div>
+                <label for="sustain">Sustain:</label>
+                <input type="number" id="sustain" value="0.5" min="0" max="1" step="0.01">
+            </div>
+            <div>
+                <label for="release">Release:</label>
+                <input type="number" id="release" value="0.1" min="0" max="2" step="0.01">
+            </div>
+        </div>
+        <button id="exportButton" class="export-button">FlMMLとして出力</button>
+    </main>
+    <footer>
+        <p>&copy; 2024 Sequencer. All rights reserved.</p>
+        <p style="position: absolute; bottom: 0; left: 0; margin: 20px 30px; font-size: xx-small;">Inspired by <a href="https://play.date/pulp" rel="nofollow" target="_blank">Playdate Pulp</a></p>
+    </footer>
+    <script>
+        // 定数の定義
+        const GRID_HEIGHT = 16;
+        const GRID_WIDTH = 16;
+        const GRID_COLS = 512;  // 32小節分
+        const RESIZE_HANDLE_WIDTH = 5; // リサイズハンドルの幅（ピクセル）
+        const OCTAVE_ADJUSTMENT = -2;
+        const PITCH_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+        // アプリケーションの状態を管理するオブジェクト
+        const AppState = {
+            tracks: [{ notes: [], settings: getDefaultTrackSettings() }],
+            currentTrack: 0,
+            isLooping: false,
+            selectedNote: null,
+            defaultOctave: 4,
+            isDragging: false,
+            dragStartX: null,
+            isDraggingNote: false,
+            dragOffsetX: 0,
+            dragOffsetY: 0,
+            tempNote: null,
+            hoveredCell: null,
+            undoStack: [],
+            redoStack: [],
+            lastSavedState: '',
+            viewportStart: 0,
+            isPlaybackBarDragging: false,
+            isViewportBarDragging: false,
+            playbackPosition: 0,
+            isPlaying: false,
+            isResizingNote: false,
+            resizingNote: null,
+            resizeStartX: null,
+            synths: [],
+            part: null
+        };
+
+        // DOM要素の取得
+        const canvas = document.getElementById('musicCanvas');
+        const ctx = canvas.getContext('2d');
+        const overviewContainer = document.getElementById('overviewContainer');
+        const playbackBar = document.getElementById('playbackBar');
+
+        // ユーティリティ関数
+        function getComputedColor(varName) {
+            return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+        }
+
+        function getDefaultTrackSettings() {
+            return {
+                waveform: 'sine',
+                volume: 0.79,
+                attack: 0.01,
+                decay: 0.1,
+                sustain: 0.5,
+                release: 0.1
+            };
+        }
+
+        // 描画関連の関数
+        const Renderer = {
+            drawGrid: function () {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // 背景のグリッドを描画
+                ctx.save();
+                ctx.strokeStyle = getComputedColor('--grid-color');
+
+                // 横線（音程）
+                for (let i = 0; i < 12; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, i * GRID_HEIGHT);
+                    ctx.lineTo(canvas.width, i * GRID_HEIGHT);
+                    ctx.stroke();
+                }
+
+                // 縦線（拍子）
+                for (let i = 0; i <= GRID_COLS; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo((i - AppState.viewportStart) * GRID_WIDTH, 0);
+                    ctx.lineTo((i - AppState.viewportStart) * GRID_WIDTH, canvas.height);
+                    ctx.lineWidth = i % 16 === 0 ? 2 : i % 4 === 0 ? 1 : 0.5;
+                    ctx.stroke();
+                }
+                ctx.restore();
+
+                // ホバー中のセルを描画
+                if (AppState.hoveredCell) {
+                    ctx.fillStyle = getComputedColor('--hover-cell-color');
+                    ctx.fillRect((AppState.hoveredCell.x - AppState.viewportStart) * GRID_WIDTH, AppState.hoveredCell.y * GRID_HEIGHT, GRID_WIDTH, GRID_HEIGHT);
+                }
+
+                // ノートを最前面に描画
+                AppState.tracks[AppState.currentTrack].notes.forEach(note => {
+                    const noteStartX = note.x;
+                    const noteEndX = note.x + note.length * GRID_WIDTH;
+                    const viewportStartX = AppState.viewportStart * GRID_WIDTH;
+                    const viewportEndX = (AppState.viewportStart + 64) * GRID_WIDTH;
+
+                    // ノートがビューポート内にある場合のみ描画
+                    if (noteEndX > viewportStartX && noteStartX < viewportEndX) {
+                        const visibleStartX = Math.max(noteStartX, viewportStartX);
+                        const visibleEndX = Math.min(noteEndX, viewportEndX);
+                        const visibleWidth = visibleEndX - visibleStartX;
+
+                        const drawStartX = visibleStartX - viewportStartX;
+
+                        // ノートの本体を描画
+                        ctx.fillStyle = note === AppState.selectedNote ? getComputedColor('--selected-note-color') : getComputedColor('--note-color');
+                        ctx.fillRect(drawStartX, note.y, visibleWidth, GRID_HEIGHT);
+
+                        // ノート全体のボーダーを描画
+                        ctx.strokeStyle = getComputedColor('--note-border-color');
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(drawStartX, note.y, visibleWidth, GRID_HEIGHT);
+
+                        // ノートの右側のボーダーを描画（ノートの終端がビューポート内にある場合のみ）
+                        if (noteEndX <= viewportEndX) {
+                            ctx.save();
+                            ctx.strokeStyle = getComputedColor('--note-right-border-color');
+                            ctx.lineWidth = 2;
+                            ctx.beginPath();
+                            ctx.moveTo(drawStartX + visibleWidth, note.y);
+                            ctx.lineTo(drawStartX + visibleWidth, note.y + GRID_HEIGHT);
+                            ctx.stroke();
+                            ctx.restore();
+                        }
+                    }
+                });
+
+                // 一時的なノート（ドラッグ中）を描画
+                if (AppState.tempNote) {
+                    const noteStartX = AppState.tempNote.x;
+                    const noteEndX = AppState.tempNote.x + AppState.tempNote.length * GRID_WIDTH;
+                    const viewportStartX = AppState.viewportStart * GRID_WIDTH;
+                    const viewportEndX = (AppState.viewportStart + 64) * GRID_WIDTH;
+
+                    if (noteEndX > viewportStartX && noteStartX < viewportEndX) {
+                        const visibleStartX = Math.max(noteStartX, viewportStartX);
+                        const visibleEndX = Math.min(noteEndX, viewportEndX);
+                        const visibleWidth = visibleEndX - visibleStartX;
+
+                        const drawStartX = visibleStartX - viewportStartX;
+
+                        ctx.fillStyle = getComputedColor('--temp-note-color');
+                        ctx.fillRect(drawStartX, AppState.tempNote.y, visibleWidth, GRID_HEIGHT);
+
+                        // 一時的なノート全体のボーダーを描画
+                        ctx.strokeStyle = getComputedColor('--note-border-color');
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(drawStartX, AppState.tempNote.y, visibleWidth, GRID_HEIGHT);
+
+                        // 一時的なノートの右側のボーダーを描画（ノートの終端がビューポート内にある場合のみ）
+                        if (noteEndX <= viewportEndX) {
+                            ctx.save();
+                            ctx.strokeStyle = getComputedColor('--note-right-border-color');
+                            ctx.lineWidth = 2;
+                            ctx.beginPath();
+                            ctx.moveTo(drawStartX + visibleWidth, AppState.tempNote.y);
+                            ctx.lineTo(drawStartX + visibleWidth, AppState.tempNote.y + GRID_HEIGHT);
+                            ctx.stroke();
+                            ctx.restore();
+                        }
+                    }
+                }
+
+                updatePlaybackIndicators();
+            },
+
+            drawOverview: function () {
+                const scrollTop = overviewContainer.scrollTop;
+                overviewContainer.innerHTML = '';
+                const scale = (overviewContainer.clientWidth - 50) / (GRID_COLS * GRID_WIDTH);
+
+                AppState.tracks.forEach((track, index) => {
+                    const trackElement = document.createElement('div');
+                    trackElement.className = 'overview-track';
+
+                    const labelElement = document.createElement('div');
+                    labelElement.className = 'overview-track-label';
+                    labelElement.textContent = `Track ${index + 1}`;
+                    trackElement.appendChild(labelElement);
+
+                    const contentElement = document.createElement('div');
+                    contentElement.className = 'overview-track-content';
+                    const canvas = document.createElement('canvas');
+                    canvas.width = overviewContainer.clientWidth - 50;
+                    canvas.height = 30;
+                    contentElement.appendChild(canvas);
+                    trackElement.appendChild(contentElement);
+
+                    const deleteButton = document.createElement('button');
+                    deleteButton.textContent = '削除';
+                    deleteButton.className = 'delete-track-button';
+                    deleteButton.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        deleteTrack(index);
+                    }, true);
+                    trackElement.appendChild(deleteButton);
+
+                    overviewContainer.appendChild(trackElement);
+
+                    const trackPlaybackIndicator = document.createElement('div');
+                    trackPlaybackIndicator.className = 'track-playback-indicator';
+                    contentElement.appendChild(trackPlaybackIndicator);
+
+                    const ctx = canvas.getContext('2d');
+
+                    // Draw grid lines
+                    ctx.strokeStyle = '#ddd';
+                    for (let i = 0; i <= GRID_COLS; i += 4) {
+                        ctx.beginPath();
+                        ctx.moveTo(i * GRID_WIDTH * scale, 0);
+                        ctx.lineTo(i * GRID_WIDTH * scale, canvas.height);
+                        ctx.lineWidth = i % 16 === 0 ? 2 : 1;
+                        ctx.stroke();
+                    }
+
+                    // Draw notes
+                    track.notes.forEach(note => {
+                        ctx.fillStyle = index === AppState.currentTrack && note === AppState.selectedNote ? 'red' : 'black';
+                        const noteWidth = (note.length * GRID_WIDTH - GRID_WIDTH / 16) * scale;
+                        const noteHeight = canvas.height / 12; // 12音階に対応
+                        const noteY = (note.y / GRID_HEIGHT) * noteHeight;
+                        ctx.fillRect(note.x * scale, noteY, noteWidth, noteHeight);
+                    });
+                });
+
+                overviewContainer.scrollTop = scrollTop;
+
+                // Draw viewport
+                const viewportIndicator = document.createElement('div');
+                viewportIndicator.className = 'viewport-indicator';
+                viewportIndicator.style.left = `${50 + AppState.viewportStart * GRID_WIDTH * scale}px`;
+                viewportIndicator.style.top = `${AppState.currentTrack * 31}px`;
+                viewportIndicator.style.width = `${64 * GRID_WIDTH * scale}px`;
+                viewportIndicator.style.height = `28px`;
+                overviewContainer.appendChild(viewportIndicator);
+
+                updatePlaybackIndicators();
+            }
+        };
+
+        // 音楽関連の関数
+        const MusicPlayer = {
+            playSound: function (startPosition = AppState.playbackPosition) {
+                this.stopSound(false);  // 再生位置をリセットしない
+                AppState.isPlaying = true;
+                const tempo = parseInt(document.getElementById('tempo').value);
+                Tone.Transport.bpm.value = tempo;
+
+                AppState.synths = AppState.tracks.map(track => {
+                    const settings = track.settings;
+                    if (settings.waveform === 'noise') {
+                        return new Tone.NoiseSynth({
+                            noise: { type: 'white' },
+                            envelope: {
+                                attack: settings.attack,
+                                decay: settings.decay,
+                                sustain: settings.sustain,
+                                release: settings.release
+                            },
+                            volume: Tone.gainToDb(settings.volume)
+                        }).toDestination();
+                    } else {
+                        return new Tone.PolySynth(Tone.Synth, {
+                            oscillator: { type: settings.waveform },
+                            envelope: {
+                                attack: settings.attack,
+                                decay: settings.decay,
+                                sustain: settings.sustain,
+                                release: settings.release
+                            },
+                            volume: Tone.gainToDb(settings.volume)
+                        }).toDestination();
+                    }
+                });
+
+                const allNotes = AppState.tracks.flatMap((track, trackIndex) =>
+                    track.notes.map(note => ({
+                        time: `${note.x / GRID_WIDTH * 0.25 * (120 / tempo)}`,
+                        note: track.settings.waveform === 'noise'
+                            ? (note.octave === 0 ? 'C8' : 'C2')
+                            : Tone.Frequency(PITCH_NAMES[11 - Math.floor(note.y / GRID_HEIGHT)] + (note.octave + OCTAVE_ADJUSTMENT + 1)).toNote(),
+                        duration: `${note.length * 0.25 * (120 / tempo)}`,
+                        trackIndex
+                    }))
+                );
+
+                AppState.part = new Tone.Part((time, value) => {
+                    if (AppState.tracks[value.trackIndex].settings.waveform === 'noise') {
+                        AppState.synths[value.trackIndex].triggerAttackRelease(value.duration, time);
+                    } else {
+                        AppState.synths[value.trackIndex].triggerAttackRelease(value.note, value.duration, time);
+                    }
+                }, allNotes).start(0);
+
+                Tone.Transport.start("+0.1", `${startPosition * 0.25}`);
+
+                function updatePlaybackPosition() {
+                    if (!AppState.isPlaying) return;
+                    AppState.playbackPosition = Math.floor(Tone.Transport.seconds * 4 * (tempo / 120));
+                    updatePlaybackIndicators();
+                    requestAnimationFrame(updatePlaybackPosition);
+                }
+
+                updatePlaybackPosition();
+            },
+
+            stopSound: function (resetPosition = true) {
+                AppState.isPlaying = false;
+                if (AppState.part) {
+                    AppState.part.dispose();
+                    AppState.part = null;
+                }
+                AppState.synths.forEach(synth => synth.dispose());
+                AppState.synths = [];
+                Tone.Transport.stop();
+                Tone.Transport.cancel();
+                if (resetPosition) {
+                    AppState.playbackPosition = 0;
+                }
+                updatePlaybackIndicators();
+            },
+
+            pauseSound: function () {
+                AppState.isPlaying = false;
+                Tone.Transport.pause();
+            },
+
+            playNoteSound: function (note) {
+                this.stopPreviewSound();
+                const trackSettings = AppState.tracks[AppState.currentTrack].settings;
+                let synth;
+                if (trackSettings.waveform === 'noise') {
+                    synth = new Tone.NoiseSynth({
+                        noise: { type: 'white' },
+                        envelope: {
+                            attack: trackSettings.attack,
+                            decay: trackSettings.decay,
+                            sustain: trackSettings.sustain,
+                            release: trackSettings.release
+                        },
+                        volume: Tone.gainToDb(trackSettings.volume)
+                    }).toDestination();
+                    synth.triggerAttackRelease(note.length * 0.25);
+                } else {
+                    synth = new Tone.Synth({
+                        oscillator: { type: trackSettings.waveform },
+                        envelope: {
+                            attack: trackSettings.attack,
+                            decay: trackSettings.decay,
+                            sustain: trackSettings.sustain,
+                            release: trackSettings.release
+                        },
+                        volume: Tone.gainToDb(trackSettings.volume)
+                    }).toDestination();
+
+                    const noteIndex = 11 - Math.floor(note.y / GRID_HEIGHT);
+                    const adjustedOctave = note.octave + OCTAVE_ADJUSTMENT;
+                    const frequency = Tone.Frequency(PITCH_NAMES[noteIndex] + (adjustedOctave + 1)).toFrequency();
+                    synth.triggerAttackRelease(frequency, note.length * 0.25);
+                }
+            },
+
+            playShortNoteSound: function (note) {
+                const trackSettings = AppState.tracks[AppState.currentTrack].settings;
+                const tempo = parseInt(document.getElementById('tempo').value);
+                const eighthNoteDuration = 60 / tempo / 2; // 八分音符の長さ（秒）
+
+                let synth;
+                if (trackSettings.waveform === 'noise') {
+                    synth = new Tone.NoiseSynth({
+                        noise: { type: 'white' },
+                        envelope: {
+                            attack: 0.005,
+                            decay: eighthNoteDuration - 0.005,
+                            sustain: 0,
+                            release: 0
+                        },
+                        volume: Tone.gainToDb(trackSettings.volume)
+                    }).toDestination();
+                    synth.triggerAttackRelease(eighthNoteDuration);
+                } else {
+                    synth = new Tone.Synth({
+                        oscillator: { type: trackSettings.waveform },
+                        envelope: {
+                            attack: 0.005,
+                            decay: eighthNoteDuration - 0.005,
+                            sustain: 0,
+                            release: 0
+                        },
+                        volume: Tone.gainToDb(trackSettings.volume)
+                    }).toDestination();
+
+                    const noteIndex = 11 - Math.floor(note.y / GRID_HEIGHT);
+                    const adjustedOctave = note.octave + OCTAVE_ADJUSTMENT;
+                    const frequency = Tone.Frequency(PITCH_NAMES[noteIndex] + (adjustedOctave + 1)).toFrequency();
+                    synth.triggerAttackRelease(frequency, eighthNoteDuration);
+                }
+            },
+
+            stopPreviewSound: function () {
+                // Tone.jsでは自動的に音が止まるため、特に何もする必要がありません。
+            },
+
+            loopSound: function () {
+                AppState.isLooping = !AppState.isLooping;
+                document.getElementById('loopButton').textContent = AppState.isLooping ? 'ループ解除' : 'ループ';
+                Tone.Transport.loop = AppState.isLooping;
+                Tone.Transport.loopEnd = `${GRID_COLS / 4}m`;
+                if (AppState.isLooping && !AppState.isPlaying) {
+                    this.playSound();
+                }
+            }
+        };
+
+        // イベントハンドラ
+        function handleCanvasEvent(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left + AppState.viewportStart * GRID_WIDTH;
+            const gridX = Math.floor(x / GRID_WIDTH) * GRID_WIDTH;
+            const y = Math.floor((e.clientY - rect.top) / GRID_HEIGHT) * GRID_HEIGHT;
+
+            switch (e.type) {
+                case 'mousedown':
+                    if (e.button === 0) { // 左クリック
+                        const clickedNote = AppState.tracks[AppState.currentTrack].notes.find(note =>
+                            note.y === y && x >= note.x && x < note.x + note.length * GRID_WIDTH
+                        );
+
+                        if (clickedNote) {
+                            AppState.selectedNote = clickedNote;
+                            const clickOffsetX = x - clickedNote.x;
+                            if (clickOffsetX > (clickedNote.length * GRID_WIDTH - RESIZE_HANDLE_WIDTH)) {
+                                // ノートの右端（リサイズハンドル）をクリック
+                                AppState.isResizingNote = true;
+                                AppState.resizingNote = clickedNote;
+                                AppState.resizeStartX = x;
+                            } else {
+                                // ノートの内部をクリック
+                                AppState.isDraggingNote = true;
+                                AppState.dragOffsetX = clickOffsetX;
+                                AppState.dragOffsetY = y - clickedNote.y;
+                            }
+                            updateParameterBox();
+                            MusicPlayer.playShortNoteSound(clickedNote);
+                        } else {
+                            AppState.isDragging = true;
+                            const prevNote = AppState.tracks[AppState.currentTrack].notes.filter(note => note.x <= gridX).sort((a, b) => b.x - a.x)[0];
+                            const octave = prevNote ? prevNote.octave : AppState.defaultOctave;
+                            AppState.tempNote = {
+                                x: gridX,
+                                y,
+                                length: 1,
+                                octave: octave
+                            };
+                            AppState.dragStartX = e.clientX;
+                            MusicPlayer.playShortNoteSound(AppState.tempNote);
+                        }
+                    } else if (e.button === 2) { // 右クリック
+                        e.preventDefault();
+                        const clickedNoteIndex = AppState.tracks[AppState.currentTrack].notes.findIndex(note =>
+                            note.y === y && x >= note.x && x < note.x + note.length * GRID_WIDTH
+                        );
+
+                        if (clickedNoteIndex !== -1) {
+                            AppState.tracks[AppState.currentTrack].notes.splice(clickedNoteIndex, 1);
+                            saveState();
+                        }
+                    }
+                    break;
+                case 'mousemove':
+                    AppState.hoveredCell = {
+                        x: Math.floor((e.clientX - rect.left) / GRID_WIDTH) + AppState.viewportStart,
+                        y: Math.floor((e.clientY - rect.top) / GRID_HEIGHT)
+                    };
+
+                    if (AppState.isDragging && AppState.tempNote) {
+                        const dragEndX = Math.floor((e.clientX - rect.left + AppState.viewportStart * GRID_WIDTH) / GRID_WIDTH) * GRID_WIDTH;
+                        if (dragEndX > AppState.tempNote.x) {
+                            const newLength = Math.max(1, Math.floor((dragEndX - AppState.tempNote.x) / GRID_WIDTH) + 1);
+                            if (newLength !== AppState.tempNote.length) {
+                                AppState.tempNote.length = newLength;
+                                MusicPlayer.playShortNoteSound(AppState.tempNote);
+                            }
+                        }
+                    } else if (AppState.isDraggingNote && AppState.selectedNote) {
+                        const newX = Math.floor((x - AppState.dragOffsetX) / GRID_WIDTH) * GRID_WIDTH;
+                        const newY = Math.floor((e.clientY - rect.top) / GRID_HEIGHT) * GRID_HEIGHT;
+
+                        if (newX !== AppState.selectedNote.x || newY !== AppState.selectedNote.y) {
+                            AppState.selectedNote.x = newX;
+                            AppState.selectedNote.y = newY;
+                            MusicPlayer.playShortNoteSound(AppState.selectedNote);
+                        }
+                    } else if (AppState.isResizingNote && AppState.resizingNote) {
+                        const newEndX = Math.max(AppState.resizingNote.x + GRID_WIDTH, Math.floor((x) / GRID_WIDTH) * GRID_WIDTH);
+                        const newLength = Math.max(1, Math.floor((newEndX - AppState.resizingNote.x) / GRID_WIDTH));
+                        if (newLength !== AppState.resizingNote.length) {
+                            AppState.resizingNote.length = newLength;
+                            updateParameterBox();
+                            MusicPlayer.playShortNoteSound(AppState.resizingNote);
+                        }
+                    }
+
+                    // カーソルスタイルの更新
+                    const hoverNote = AppState.tracks[AppState.currentTrack].notes.find(note =>
+                        note.y === y && x >= note.x && x < note.x + note.length * GRID_WIDTH
+                    );
+                    if (hoverNote && x > hoverNote.x + hoverNote.length * GRID_WIDTH - RESIZE_HANDLE_WIDTH) {
+                        canvas.style.cursor = 'ew-resize';
+                    } else {
+                        canvas.style.cursor = 'default';
+                    }
+                    break;
+                case 'mouseup':
+                    if (AppState.isDraggingNote || AppState.isResizingNote) {
+                        AppState.isDraggingNote = false;
+                        AppState.isResizingNote = false;
+                        AppState.resizingNote = null;
+                        removeOverlappingNotes(AppState.selectedNote);
+                        saveState();
+                    } else if (AppState.isDragging && AppState.tempNote) {
+                        AppState.tracks[AppState.currentTrack].notes.push(AppState.tempNote);
+                        removeOverlappingNotes(AppState.tempNote);
+                        AppState.selectedNote = AppState.tempNote;
+                        AppState.tempNote = null;
+                        AppState.isDragging = false;
+                        updateParameterBox();
+                        saveState();
+                    }
+                    MusicPlayer.stopPreviewSound();
+                    break;
+                case 'click':
+                    const clickedNote = AppState.tracks[AppState.currentTrack].notes.find(note =>
+                        note.y === y && x >= note.x && x < note.x + note.length * GRID_WIDTH
+                    );
+                    AppState.selectedNote = clickedNote || null;
+                    updateParameterBox();
+                    break;
+            }
+            Renderer.drawGrid();
+            Renderer.drawOverview();
+        }
+
+        function handleOverviewEvent(e) {
+            const rect = overviewContainer.getBoundingClientRect();
+            const scrollTop = overviewContainer.scrollTop;
+            const x = e.clientX - rect.left - 50; // 50px for track labels
+            const y = e.clientY - rect.top + scrollTop; // スクロール位置を考慮
+            const scale = (overviewContainer.clientWidth - 50) / (GRID_COLS * GRID_WIDTH);
+
+            switch (e.type) {
+                case 'mousedown':
+                    const clickedTrack = Math.floor(y / 30);
+                    if (clickedTrack < AppState.tracks.length) {
+                        AppState.currentTrack = clickedTrack;
+                        AppState.viewportStart = Math.floor(x / (GRID_WIDTH * scale)) - 32;
+                        AppState.viewportStart = Math.max(0, Math.min(AppState.viewportStart, GRID_COLS - 64));
+                        AppState.isViewportBarDragging = true;
+                    }
+                    break;
+                case 'mousemove':
+                    if (AppState.isViewportBarDragging) {
+                        AppState.viewportStart = Math.floor(x / (GRID_WIDTH * scale)) - 32;
+                        AppState.viewportStart = Math.max(0, Math.min(AppState.viewportStart, GRID_COLS - 64));
+                    }
+                    break;
+                case 'mouseup':
+                    AppState.isViewportBarDragging = false;
+                    break;
+            }
+            Renderer.drawGrid();
+            Renderer.drawOverview();
+            updateTrackSettings();
+        }
+
+        // ヘルパー関数
+        function removeOverlappingNotes(newNote) {
+            AppState.tracks[AppState.currentTrack].notes = AppState.tracks[AppState.currentTrack].notes.filter(note => {
+                if (note === newNote) return true;
+                if (note.x >= newNote.x + newNote.length * GRID_WIDTH || note.x + note.length * GRID_WIDTH <= newNote.x) return true;
+                if (note.x < newNote.x) {
+                    note.length = Math.floor((newNote.x - note.x) / GRID_WIDTH);
+                    return note.length > 0;
+                }
+                return false;
+            });
+        }
+
+        function updateParameterBox() {
+            const parameterBox = document.getElementById('parameterBox');
+            if (AppState.selectedNote) {
+                parameterBox.style.display = 'block';
+                const pitchIndex = 11 - Math.floor(AppState.selectedNote.y / GRID_HEIGHT);
+                document.getElementById('pitch').value = pitchIndex;
+                document.getElementById('octave').value = AppState.selectedNote.octave;
+                document.getElementById('length').value = AppState.selectedNote.length;
+                updatePitchName();
+            } else {
+                parameterBox.style.display = 'none';
+            }
+        }
+
+        function updatePitchName() {
+            const pitchValue = parseInt(document.getElementById('pitch').value);
+            const pitchName = PITCH_NAMES[pitchValue];
+            document.getElementById('pitchNameDisplay').textContent = ` (${pitchName})`;
+        }
+
+        function updateTrackSettings() {
+            const settings = AppState.tracks[AppState.currentTrack].settings;
+            document.getElementById('waveform').value = settings.waveform;
+            document.getElementById('trackVolume').value = settings.volume;
+            document.getElementById('attack').value = settings.attack;
+            document.getElementById('decay').value = settings.decay;
+            document.getElementById('sustain').value = settings.sustain;
+            document.getElementById('release').value = settings.release;
+        }
+
+        function saveState() {
+            const currentState = JSON.stringify(AppState.tracks);
+            if (currentState !== AppState.lastSavedState) {
+                AppState.undoStack.push(AppState.lastSavedState);
+                AppState.redoStack = [];
+                AppState.lastSavedState = currentState;
+            }
+        }
+
+        function undo() {
+            if (AppState.undoStack.length > 0) {
+                const currentState = JSON.stringify(AppState.tracks);
+                AppState.redoStack.push(currentState);
+                AppState.tracks = JSON.parse(AppState.undoStack.pop());
+                AppState.lastSavedState = JSON.stringify(AppState.tracks);
+                Renderer.drawGrid();
+                Renderer.drawOverview();
+                updateParameterBox();
+                updateTrackSettings();
+            }
+        }
+
+        function redo() {
+            if (AppState.redoStack.length > 0) {
+                const currentState = JSON.stringify(AppState.tracks);
+                AppState.undoStack.push(currentState);
+                AppState.tracks = JSON.parse(AppState.redoStack.pop());
+                AppState.lastSavedState = JSON.stringify(AppState.tracks);
+                Renderer.drawGrid();
+                Renderer.drawOverview();
+                updateParameterBox();
+                updateTrackSettings();
+            }
+        }
+
+        function addTrack() {
+            AppState.tracks.push({ notes: [], settings: getDefaultTrackSettings() });
+            AppState.currentTrack = AppState.tracks.length - 1;
+            Renderer.drawOverview();
+            updateTrackSettings();
+        }
+
+        function deleteTrack(index) {
+            if (AppState.tracks.length > 1) {
+                AppState.tracks.splice(index, 1);
+                if (AppState.currentTrack >= AppState.tracks.length) {
+                    AppState.currentTrack = AppState.tracks.length - 1;
+                }
+                saveState();
+                Renderer.drawOverview();
+                Renderer.drawGrid();
+                updateTrackSettings();
+            } else {
+                alert('最後のトラックは削除できません。');
+            }
+        }
+
+        function clearNotes() {
+            saveState();
+            AppState.tracks[AppState.currentTrack].notes = [];
+            Renderer.drawGrid();
+            Renderer.drawOverview();
+        }
+
+        // プレイバックインジケーター関連の関数
+        function updatePlaybackIndicators() {
+            const playbackScale = (overviewContainer.clientWidth - 50) / (GRID_COLS * GRID_WIDTH);
+            const overviewIndicator = document.querySelector('#overviewPlaybackBar .overview-playback-indicator');
+            const playbackIndicator = document.querySelector('#playbackBar .playback-indicator');
+            const canvasPlaybackBar = document.getElementById('canvasPlaybackBar');
+            const trackPlaybackIndicators = document.querySelectorAll('.track-playback-indicator');
+
+            const playbackColor = getComputedColor('--playback-color');
+
+            if (overviewIndicator) {
+                overviewIndicator.style.left = `${AppState.playbackPosition * GRID_WIDTH * playbackScale}px`;
+                overviewIndicator.style.backgroundColor = playbackColor;
+            }
+            if (playbackIndicator) {
+                playbackIndicator.style.left = `${AppState.playbackPosition * GRID_WIDTH * playbackScale}px`;
+                playbackIndicator.style.backgroundColor = playbackColor;
+            }
+            if (canvasPlaybackBar) {
+                canvasPlaybackBar.style.left = `${(AppState.playbackPosition - AppState.viewportStart) * GRID_WIDTH}px`;
+                canvasPlaybackBar.style.display = parseFloat(canvasPlaybackBar.style.left) > canvas.width ? 'none' : 'block';
+                canvasPlaybackBar.style.backgroundColor = playbackColor;
+            }
+            trackPlaybackIndicators.forEach(indicator => {
+                indicator.style.left = `${AppState.playbackPosition * GRID_WIDTH * playbackScale}px`;
+                indicator.style.backgroundColor = playbackColor;
+            });
+        }
+
+        function createPlaybackIndicator(container) {
+            const indicator = document.createElement('div');
+            indicator.className = container.id === 'overviewPlaybackBar' ? 'overview-playback-indicator' : 'playback-indicator';
+            indicator.style.height = '100%';
+            indicator.style.width = '2px';
+            indicator.style.position = 'absolute';
+            indicator.style.backgroundColor = getComputedColor('--playback-color');
+            container.appendChild(indicator);
+        }
+
+        function initializePlaybackBars() {
+            const playbackBar = document.getElementById('playbackBar');
+            const overviewPlaybackBar = document.getElementById('overviewPlaybackBar');
+
+            createPlaybackIndicator(playbackBar);
+            createPlaybackIndicator(overviewPlaybackBar);
+
+            [playbackBar, overviewPlaybackBar].forEach(bar => {
+                bar.addEventListener('mousedown', startPlaybackDrag);
+                bar.addEventListener('mousemove', updatePlaybackDrag);
+                bar.addEventListener('mouseup', endPlaybackDrag);
+                bar.addEventListener('mouseleave', endPlaybackDrag);
+            });
+        }
+
+        let isPlaybackDragging = false;
+
+        function startPlaybackDrag(e) {
+            isPlaybackDragging = true;
+            updatePlaybackPosition(e);
+        }
+
+        function updatePlaybackDrag(e) {
+            if (isPlaybackDragging) {
+                updatePlaybackPosition(e);
+            }
+        }
+
+        function endPlaybackDrag() {
+            isPlaybackDragging = false;
+        }
+
+        function updatePlaybackPosition(e) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const scale = (overviewContainer.clientWidth - 50) / (GRID_COLS * GRID_WIDTH);
+            AppState.playbackPosition = Math.floor(x / (GRID_WIDTH * scale));
+            AppState.playbackPosition = Math.max(0, Math.min(AppState.playbackPosition, GRID_COLS));
+
+            if (AppState.isPlaying) {
+                MusicPlayer.stopSound(false);
+                MusicPlayer.playSound(AppState.playbackPosition);
+            } else {
+                updatePlaybackIndicators();
+            }
+        }
+
+        // FlMML出力関連の関数
+        function exportToFlMML() {
+            const title = prompt("曲のタイトルを入力してください:", "");
+            if (title === null) return; // ユーザーがキャンセルした場合
+
+            let output = `#TITLE ${title}\n`;
+            output += `T${document.getElementById('tempo').value} L8\n\n`;
+
+            function calculateNoteLength(length) {
+                const lengths = [];
+                let remaining = length;
+
+                while (remaining > 0) {
+                    if (remaining >= 15) {
+                        lengths.push('1...');  // Whole note + dotted half note
+                        remaining -= 15;
+                    } else if (remaining >= 14) {
+                        lengths.push('1..');  // Double dotted whole note
+                        remaining -= 14;
+                    } else if (remaining >= 12) {
+                        lengths.push('1.');  // Dotted whole note
+                        remaining -= 12;
+                    } else if (remaining >= 8) {
+                        lengths.push(1);  // Whole note
+                        remaining -= 8;
+                    } else if (remaining >= 6) {
+                        lengths.push('2.');  // Dotted half note
+                        remaining -= 6;
+                    } else if (remaining >= 4) {
+                        lengths.push(2);  // Half note
+                        remaining -= 4;
+                    } else if (remaining >= 3) {
+                        lengths.push('4.');  // Dotted quarter note
+                        remaining -= 3;
+                    } else if (remaining >= 2) {
+                        lengths.push(4);  // Quarter note
+                        remaining -= 2;
+                    } else {
+                        lengths.push(8);  // Eighth note
+                        remaining -= 1;
+                    }
+                }
+
+                // Optimize the output
+                return lengths.reduce((acc, curr) => {
+                    if (acc.length === 0) {
+                        acc.push(curr);
+                    } else {
+                        const last = acc[acc.length - 1];
+                        if (last === 1 && curr === '2.' && acc.length === 1) {
+                            acc[0] = '1...';
+                        } else if (last === 2 && curr === 4) {
+                            acc[acc.length - 1] = '2.';
+                        } else if (last === 4 && curr === 8) {
+                            acc[acc.length - 1] = '4.';
+                        } else {
+                            if (typeof last === 'string' && last.includes('&') && curr !== 1) {
+                                acc[acc.length - 1] = last + '&' + curr;
+                            } else {
+                                acc.push('&', curr);
+                            }
+                        }
+                    }
+                    return acc;
+                }, []).join('');
+            }
+
+            AppState.tracks.forEach((track, index) => {
+                const waveformMap = { 'sine': 0, 'sawtooth': 1, 'triangle': 2, 'square': 3, 'noise': 4 };
+                const waveform = waveformMap[track.settings.waveform];
+                const volume = Math.round(track.settings.volume * 127);
+                const attack = Math.round(track.settings.attack * 127);
+                const decay = Math.round(track.settings.decay * 127);
+                const sustain = Math.round(track.settings.sustain * 127);
+                const release = Math.round(track.settings.release * 127);
+
+                output += `@${waveform} @V${volume} @E1,${attack},${decay},${sustain},${release}\n`;
+                output += `O4\n`;  // 開始オクターブを4に設定
+
+                let currentOctave = 4;  // 開始オクターブを4に設定
+                let lastNoteEnd = 0;
+
+                track.notes.sort((a, b) => a.x - b.x).forEach(note => {
+                    const pitch = 11 - Math.floor(note.y / GRID_HEIGHT);
+                    let noteName;
+                    if (track.settings.waveform === 'noise') {
+                        noteName = note.octave === 0 ? 'N1' : 'N0';  // ノイズの場合、O0は高音(N1)、O1は低音(N0)
+                    } else {
+                        noteName = ['C', 'C+', 'D', 'D+', 'E', 'F', 'F+', 'G', 'G+', 'A', 'A+', 'B'][pitch];
+                    }
+
+                    // Add rest if there's a gap
+                    if (note.x > lastNoteEnd) {
+                        const restLength = (note.x - lastNoteEnd) / GRID_WIDTH;
+                        const restLengths = calculateNoteLength(restLength);
+                        output += restLengths.split('&').map(l => `R${l}`).join('');
+                    }
+
+                    // Handle octave change for non-noise instruments
+                    if (track.settings.waveform !== 'noise') {
+                        const noteOctave = note.octave; // OCTAVE_ADJUSTMENTを適用しない
+                        if (noteOctave !== currentOctave) {
+                            if (Math.abs(noteOctave - currentOctave) === 1) {
+                                output += noteOctave > currentOctave ? '<' : '>';
+                            } else {
+                                output += `O${noteOctave}`;
+                            }
+                            currentOctave = noteOctave;
+                        }
+                    }
+
+                    // Add note
+                    output += noteName;
+                    const noteLength = calculateNoteLength(note.length);
+                    if (noteLength !== '8') {
+                        output += noteLength;
+                    }
+
+                    lastNoteEnd = note.x + note.length * GRID_WIDTH;
+                });
+
+                output += ';\n\n';
+            });
+
+            output += '#COMMENT Generated by Mseq';
+
+            // Create a Blob with the text content
+            const blob = new Blob([output], { type: 'text/plain' });
+
+            // Create a temporary URL for the Blob
+            const url = URL.createObjectURL(blob);
+
+            // Create a temporary anchor element and trigger the download
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'composition.flmml';
+            document.body.appendChild(a);
+            a.click();
+
+            // Clean up
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // イベントリスナーの設定
+        function setupEventListeners() {
+            ['mousedown', 'mousemove', 'mouseup', 'click'].forEach(eventType => {
+                canvas.addEventListener(eventType, handleCanvasEvent);
+                overviewContainer.addEventListener(eventType, handleOverviewEvent, true);
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!canvas.contains(e.target) && !document.getElementById('parameterBox').contains(e.target)) {
+                    AppState.selectedNote = null;
+                    updateParameterBox();
+                    Renderer.drawGrid();
+                    Renderer.drawOverview();
+                }
+            });
+
+            canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+            overviewContainer.addEventListener('contextmenu', (e) => e.preventDefault());
+
+            const pitchInput = document.getElementById('pitch');
+            pitchInput.addEventListener('input', function () {
+                const newPitch = parseInt(this.value);
+                const oldPitch = 11 - Math.floor(AppState.selectedNote.y / GRID_HEIGHT);
+                let octave = parseInt(document.getElementById('octave').value);
+
+                if (oldPitch === 11 && newPitch === 0) {
+                    octave = Math.min(8, octave + 1);
+                    document.getElementById('octave').value = octave;
+                }
+                else if (oldPitch === 0 && newPitch === 11) {
+                    octave = Math.max(0, octave - 1);
+                    document.getElementById('octave').value = octave;
+                }
+
+                updatePitchName();
+                updateNote();
+            });
+
+            document.getElementById('octave').addEventListener('input', updateNote);
+            document.getElementById('length').addEventListener('input', updateNote);
+
+            document.getElementById('trackVolume').addEventListener('change', function () {
+                validateFloatInput(this, 0, 1);
+                AppState.tracks[AppState.currentTrack].settings.volume = parseFloat(this.value);
+            });
+
+            ['attack', 'decay', 'sustain', 'release'].forEach(param => {
+                document.getElementById(param).addEventListener('change', function () {
+                    validateFloatInput(this, 0, param === 'sustain' ? 1 : Infinity);
+                    AppState.tracks[AppState.currentTrack].settings[param] = parseFloat(this.value);
+                });
+            });
+
+            document.getElementById('waveform').addEventListener('change', function () {
+                AppState.tracks[AppState.currentTrack].settings.waveform = this.value;
+            });
+
+            // ボタンイベントリスナーの設定
+            document.getElementById('playButton').addEventListener('click', () => {
+                if (AppState.isPlaying) {
+                    MusicPlayer.pauseSound();
+                    document.getElementById('playButton').textContent = '再生';
+                } else {
+                    MusicPlayer.playSound();
+                    document.getElementById('playButton').textContent = '一時停止';
+                }
+            });
+            document.getElementById('stopButton').addEventListener('click', () => {
+                MusicPlayer.stopSound(true);
+                document.getElementById('playButton').textContent = '再生';
+                updatePlaybackIndicators();
+            });
+            document.getElementById('loopButton').addEventListener('click', () => MusicPlayer.loopSound());
+            document.getElementById('clearButton').addEventListener('click', clearNotes);
+            document.getElementById('updateButton').addEventListener('click', updateNote);
+            document.getElementById('undoButton').addEventListener('click', undo);
+            document.getElementById('redoButton').addEventListener('click', redo);
+            document.getElementById('addTrackButton').addEventListener('click', addTrack);
+            document.getElementById('exportButton').addEventListener('click', exportToFlMML);
+
+            // 音量変更イベントリスナー
+            document.getElementById('volume').addEventListener('input', updateVolume);
+
+            // テンポ変更イベントリスナー
+            document.getElementById('tempo').addEventListener('change', function () {
+                const tempo = parseInt(this.value);
+                Tone.Transport.bpm.value = tempo;
+                if (AppState.isPlaying) {
+                    MusicPlayer.stopSound();
+                    MusicPlayer.playSound();  // 再生中にテンポが変更された場合、再生をリスタート
+                }
+            });
+        }
+
+        function validateFloatInput(input, min, max) {
+            let value = parseFloat(input.value);
+            if (isNaN(value)) {
+                input.value = input.defaultValue;
+            } else {
+                value = Math.min(Math.max(value, min), max);
+                input.value = value.toFixed(2);
+            }
+        }
+
+        function updateNote() {
+            if (AppState.selectedNote) {
+                const pitch = parseInt(document.getElementById('pitch').value);
+                let octave = parseInt(document.getElementById('octave').value);
+                const length = parseInt(document.getElementById('length').value);
+                AppState.selectedNote.length = Math.max(1, length);
+                const oldPitch = 11 - Math.floor(AppState.selectedNote.y / GRID_HEIGHT);
+                const oldOctave = AppState.selectedNote.octave;
+
+                if (oldPitch === 11 && pitch === 0) {
+                    octave = Math.min(8, octave + 1);
+                } else if (oldPitch === 0 && pitch === 11) {
+                    octave = Math.max(0, octave - 1);
+                }
+
+                AppState.selectedNote.y = (11 - pitch) * GRID_HEIGHT;
+                AppState.selectedNote.octave = octave;
+                AppState.selectedNote.length = length;
+
+                document.getElementById('octave').value = octave;
+
+                removeOverlappingNotes(AppState.selectedNote);
+                saveState();
+                Renderer.drawGrid();
+                Renderer.drawOverview();
+                updateParameterBox();
+            }
+        }
+
+        function updateVolume() {
+            const volume = parseFloat(document.getElementById('volume').value);
+            Tone.Destination.volume.value = Tone.gainToDb(volume);
+        }
+
+        // 初期化
+        function initialize() {
+            initializePlaybackBars();
+            Renderer.drawGrid();
+            Renderer.drawOverview();
+            updateTrackSettings();
+            setupEventListeners();
+            updateVolume();
+            Tone.start();
+        }
+
+        // アプリケーションの起動
+        window.addEventListener('load', initialize);
+    </script>
+</body>
+
+</html>
