@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mseq</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="http://unpkg.com/tone"></script>
     <style>
         :root {
             --main-width: 1024px;
@@ -241,6 +241,7 @@
             gap: 10px;
             background-color: var(--highlight-color);
             padding: 10px;
+            display: none;
         }
 
         .track-settings {
@@ -361,8 +362,9 @@
         <button id="exportButton" class="export-button">FlMMLとして出力</button>
     </main>
     <footer>
-        <p>&copy; 2024 Sequencer. All rights reserved.</p>
-        <p style="position: absolute; bottom: 0; left: 0; margin: 20px 30px; font-size: xx-small;">Inspired by <a href="https://play.date/pulp" rel="nofollow" target="_blank">Playdate Pulp</a></p>
+        <p>&copy; 2024 Mseq. All rights reserved.</p>
+        <p style="position: absolute; bottom: 0; left: 0; margin: 20px 30px; font-size: xx-small;">Inspired by <a
+                href="https://play.date/pulp" rel="nofollow" target="_blank">Playdate Pulp</a></p>
     </footer>
     <script>
         // 定数の定義
@@ -372,6 +374,8 @@
         const RESIZE_HANDLE_WIDTH = 5; // リサイズハンドルの幅（ピクセル）
         const OCTAVE_ADJUSTMENT = -2;
         const PITCH_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+        let audioContext = null;
 
         // アプリケーションの状態を管理するオブジェクト
         const AppState = {
@@ -562,8 +566,8 @@
                     deleteButton.addEventListener('click', (e) => {
                         e.stopPropagation();
                         e.preventDefault();
-                        deleteTrack(index);
-                    }, true);
+                        deleteTrack(index, e);
+                    });
                     trackElement.appendChild(deleteButton);
 
                     overviewContainer.appendChild(trackElement);
@@ -696,30 +700,44 @@
                 Tone.Transport.pause();
             },
 
-            playNoteSound: function (note) {
-                this.stopPreviewSound();
+            initAudio: function () {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
+                Tone.setContext(audioContext);
+            },
+
+            playShortNoteSound: function (note) {
+                this.initAudio();  // オーディオコンテキストの初期化と再開を確認
+
                 const trackSettings = AppState.tracks[AppState.currentTrack].settings;
+                const tempo = parseInt(document.getElementById('tempo').value);
+                const eighthNoteDuration = 60 / tempo / 2; // 八分音符の長さ（秒）
+
                 let synth;
                 if (trackSettings.waveform === 'noise') {
                     synth = new Tone.NoiseSynth({
                         noise: { type: 'white' },
                         envelope: {
-                            attack: trackSettings.attack,
-                            decay: trackSettings.decay,
-                            sustain: trackSettings.sustain,
-                            release: trackSettings.release
+                            attack: 0.005,
+                            decay: eighthNoteDuration - 0.005,
+                            sustain: 0,
+                            release: 0
                         },
                         volume: Tone.gainToDb(trackSettings.volume)
                     }).toDestination();
-                    synth.triggerAttackRelease(note.length * 0.25);
+                    synth.triggerAttackRelease(eighthNoteDuration);
                 } else {
                     synth = new Tone.Synth({
                         oscillator: { type: trackSettings.waveform },
                         envelope: {
-                            attack: trackSettings.attack,
-                            decay: trackSettings.decay,
-                            sustain: trackSettings.sustain,
-                            release: trackSettings.release
+                            attack: 0.005,
+                            decay: eighthNoteDuration - 0.005,
+                            sustain: 0,
+                            release: 0
                         },
                         volume: Tone.gainToDb(trackSettings.volume)
                     }).toDestination();
@@ -727,8 +745,12 @@
                     const noteIndex = 11 - Math.floor(note.y / GRID_HEIGHT);
                     const adjustedOctave = note.octave + OCTAVE_ADJUSTMENT;
                     const frequency = Tone.Frequency(PITCH_NAMES[noteIndex] + (adjustedOctave + 1)).toFrequency();
-                    synth.triggerAttackRelease(frequency, note.length * 0.25);
+                    synth.triggerAttackRelease(frequency, eighthNoteDuration);
                 }
+
+                setTimeout(() => {
+                    synth.dispose();
+                }, eighthNoteDuration * 1000 + 100);
             },
 
             playShortNoteSound: function (note) {
@@ -863,8 +885,8 @@
                             MusicPlayer.playShortNoteSound(AppState.selectedNote);
                         }
                     } else if (AppState.isResizingNote && AppState.resizingNote) {
-                        const newEndX = Math.max(AppState.resizingNote.x + GRID_WIDTH, Math.floor((x) / GRID_WIDTH) * GRID_WIDTH);
-                        const newLength = Math.max(1, Math.floor((newEndX - AppState.resizingNote.x) / GRID_WIDTH));
+                        const newEndX = Math.max(AppState.resizingNote.x + GRID_WIDTH, x);
+                        const newLength = Math.max(1, Math.ceil((newEndX - AppState.resizingNote.x - GRID_WIDTH / 2) / GRID_WIDTH));
                         if (newLength !== AppState.resizingNote.length) {
                             AppState.resizingNote.length = newLength;
                             updateParameterBox();
@@ -913,6 +935,10 @@
         }
 
         function handleOverviewEvent(e) {
+            if (e.target.classList.contains('delete-track-button')) {
+                return;
+            }
+
             const rect = overviewContainer.getBoundingClientRect();
             const scrollTop = overviewContainer.scrollTop;
             const x = e.clientX - rect.left - 50; // 50px for track labels
@@ -1029,7 +1055,10 @@
             updateTrackSettings();
         }
 
-        function deleteTrack(index) {
+        function deleteTrack(index, event) {
+            if (event) {
+                event.stopPropagation();
+            }
             if (AppState.tracks.length > 1) {
                 AppState.tracks.splice(index, 1);
                 if (AppState.currentTrack >= AppState.tracks.length) {
@@ -1428,6 +1457,8 @@
             setupEventListeners();
             updateVolume();
             Tone.start();
+            document.getElementById('volume').value = 0.8;
+            updateVolume();
         }
 
         // アプリケーションの起動
