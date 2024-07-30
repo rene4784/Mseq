@@ -927,12 +927,14 @@
         function updateTrackSettings() {
             const settings = AppState.tracks[AppState.currentTrack].settings;
             document.getElementById('waveform').value = settings.waveform;
-            document.getElementById('attack').value = settings.attack;
-            document.getElementById('decay').value = settings.decay;
-            document.getElementById('sustain').value = settings.sustain;
-            document.getElementById('release').value = settings.release;
-            document.getElementById('detune').value = settings.detune;
-            document.getElementById('trackVolume').value = settings.volume;
+
+            ['attack', 'decay', 'sustain', 'release', 'detune', 'trackVolume'].forEach(param => {
+                const slider = document.getElementById(param);
+                const valueDisplay = document.getElementById(`${param}Value`);
+                slider.value = settings[param];
+                valueDisplay.textContent = settings[param];
+            });
+
             drawEnvelopePreview();
         }
 
