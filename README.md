@@ -1,5 +1,7 @@
 # Mseq - FlMML Edition
 
+- [GitHub Pages](https://rene4784.github.io/Mseq/)
+
 Mseqは、FlMMLをベースとした音楽作成ツールです。通常よりも機能はオミットされていますが、視覚的なシーケンサーを用いてMMLを記述でき、初心者でも簡単にMMLを作成できるように設計されています。
 
 ## 特徴
