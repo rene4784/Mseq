@@ -22,6 +22,6 @@ Mseqは、以下のライブラリを使用しています。
 - [flmml-on-html5](https://github.com/argentum384/flmml-on-html5) / [BSD-3-Clause license](https://github.com/argentum384/flmml-on-html5/blob/master/LICENSE)
 
 ## ライセンス
-Mseqのライセンスはいずれ有効なものが決定されますが、今のところ[No License]([No License](https://choosealicense.com/no-permission/))です。
+Mseqのライセンスはいずれ有効なものが決定されますが、今のところ[No License](https://choosealicense.com/no-permission/)です。
 
 一般的な著作権法で保護されます。ただし、作者は本プログラムで生じた事物の責任をおいません（免責）。
