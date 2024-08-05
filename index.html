@@ -297,6 +297,9 @@
                 </div>
             </div>
         </div>
+        <button id="saveButton">保存</button>
+        <button id="loadButton">読み込み</button>
+        <input type="file" id="loadFile" style="display: none;">
         <button id="exportButton">FlMMLとして出力</button>
     </main>
     <footer>
@@ -1093,6 +1096,45 @@
             URL.revokeObjectURL(url);
         }
 
+        // 保存機能
+        function saveComposition() {
+            const compositionData = {
+                tracks: AppState.tracks,
+                tempo: document.getElementById('tempo').value,
+                volume: document.getElementById('volume').value
+            };
+            const blob = new Blob([JSON.stringify(compositionData)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'composition.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // 読み込み機能
+        function loadComposition(file) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const compositionData = JSON.parse(e.target.result);
+                AppState.tracks = compositionData.tracks;
+                document.getElementById('tempo').value = compositionData.tempo;
+                document.getElementById('volume').value = compositionData.volume;
+                updateVolume();
+                AppState.currentTrack = 0;
+                AppState.selectedNote = null;
+                AppState.viewportStart = 0;
+                AppState.playbackPosition = 0;
+                Renderer.drawGrid();
+                Renderer.drawOverview();
+                updateParameterBox();
+                updateTrackSettings();
+            };
+            reader.readAsText(file);
+        }
+
         // イベントリスナーの設定
         function setupEventListeners() {
             console.log("Setting up event listeners...");
@@ -1185,6 +1227,16 @@
             });
             document.getElementById('detune').addEventListener('change', function () {
                 AppState.tracks[AppState.currentTrack].settings.detune = parseInt(this.value);
+            });
+            // セーブ・ロード
+            document.getElementById('saveButton').addEventListener('click', saveComposition);
+            document.getElementById('loadButton').addEventListener('click', function() {
+                document.getElementById('loadFile').click();
+            });
+            document.getElementById('loadFile').addEventListener('change', function(e) {
+                if (e.target.files.length > 0) {
+                    loadComposition(e.target.files[0]);
+                }
             });
         }
 
