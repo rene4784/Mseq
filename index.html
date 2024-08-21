@@ -622,8 +622,8 @@
                 let mml = `T${document.getElementById('tempo').value} L8\n\n`;
 
                 AppState.tracks.forEach((track, index) => {
-                    const { waveform, attack, decay, sustain, release, detune, volume } = track.settings;
-                    mml += `@${waveform} @E1,${attack},${decay},${sustain},${release} @D${detune} @V${volume} Q16 @Q1\n`;
+                    const { waveform, attack, decay, sustain, release, detune, trackVolume } = track.settings;
+                    mml += `@${waveform} @E1,${attack},${decay},${sustain},${release} @D${detune} @V${trackVolume} Q16 @Q1\n`;
 
                     const sortedNotes = track.notes.sort((a, b) => a.x - b.x);
                     let currentPosition = startPosition * GRID_WIDTH;
