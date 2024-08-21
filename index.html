@@ -310,7 +310,7 @@
         console.log("Script started");
         // アプリケーションの状態を管理するオブジェクト
         const AppState = {
-            tracks: [{ notes: [], settings: { waveform: 3, attack: 0, decay: 60, sustain: 30, release: 1, detune: 0, volume: 100 } }],
+            tracks: [{ notes: [], settings: { waveform: 3, attack: 0, decay: 60, sustain: 30, release: 1, detune: 0, trackVolume: 100 } }],
             currentTrack: 0,
             selectedNote: null,
             defaultOctave: 5,
@@ -899,7 +899,7 @@
             const ctx = canvas.getContext('2d');
 
             const settings = AppState.tracks[AppState.currentTrack].settings;
-            const { attack, decay, sustain, release, volume } = settings;
+            const { attack, decay, sustain, release } = settings;
 
             const maxTime = Math.max(attack, decay, release, 127); // 最大時間を127に設定
             const sustainLevel = 1 - (sustain / 127);
@@ -977,7 +977,7 @@
         }
 
         function addTrack() {
-            AppState.tracks.push({ notes: [], settings: { waveform: 3, octave: 5, attack: 0, decay: 60, sustain: 30, release: 1, detune: 0, volume: 100 } });
+            AppState.tracks.push({ notes: [], settings: { waveform: 3, octave: 5, attack: 0, decay: 60, sustain: 30, release: 1, detune: 0, trackVolume: 100 } });
             AppState.currentTrack = AppState.tracks.length - 1;
             Renderer.drawOverview();
             updateTrackSettings();
