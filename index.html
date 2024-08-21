@@ -899,7 +899,7 @@
             const ctx = canvas.getContext('2d');
 
             const settings = AppState.tracks[AppState.currentTrack].settings;
-            const { attack, decay, sustain, release } = settings;
+            const { attack, decay, sustain, release, volume } = settings;
 
             const maxTime = Math.max(attack, decay, release, 127); // 最大時間を127に設定
             const sustainLevel = 1 - (sustain / 127);
