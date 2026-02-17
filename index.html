@@ -137,7 +137,9 @@
             flex-grow: 1; overflow-y: auto; overflow-x: hidden;
             position: relative; padding-top: 24px;
             -webkit-overflow-scrolling: touch;
-            touch-action: pan-y; /* 縦スクロールは許可、横はJSで制御 */
+            /* 右側のタッチ制御はJSで行うが、左側のスクロールのためにpan-yを残すか検討したが、
+               イベントリスナーでpreventDefault制御する方が確実なため初期値に戻す */
+            touch-action: none; 
         }
 
         .overview-track {
@@ -1225,8 +1227,25 @@
 
                 // --- Canvas Events ---
                 cvs.addEventListener('touchstart', e => {
+                    // Multi-touch cancel logic
                     if (e.touches.length >= 2) {
                         State.isTwoFingerScroll = true;
+                        
+                        // Cancel any pending edit action immediately
+                        if (State.interactionMode === 'DRAW') {
+                            State.tempNote = null; 
+                        } 
+                        else if ((State.interactionMode === 'MOVE' || State.interactionMode === 'RESIZE') && State.selectedNote && State.dragStartNoteState) {
+                            // Revert changes
+                            State.selectedNote.x = State.dragStartNoteState.x;
+                            State.selectedNote.y = State.dragStartNoteState.y;
+                            State.selectedNote.length = State.dragStartNoteState.length;
+                            State.selectedNote.octave = State.dragStartNoteState.octave;
+                        }
+                        
+                        State.interactionMode = 'NONE';
+                        View.refresh();
+
                         State.scrollStartPos = { x: (e.touches[0].clientX + e.touches[1].clientX)/2, y: (e.touches[0].clientY + e.touches[1].clientY)/2 };
                         const area = document.getElementById('canvasArea');
                         State.scrollStartScroll = { x: State.viewportStartCol, y: area.scrollTop };
@@ -1234,9 +1253,9 @@
                     } 
                     else if (e.touches.length === 1) {
                         State.isTwoFingerScroll = false;
-                        // Don't preventDefault here to allow potential long-press context menu or let handleCanvasDown decide
-                        // However, to prevent scrolling while drawing, we often need preventDefault.
-                        e.preventDefault(); 
+                        // Allow browser defaults for potential long press menus unless it conflicts
+                        // but generally we want to prevent scrolling while drawing
+                        // e.preventDefault(); 
                         this.handleCanvasDown(this.touchToMouse(e));
                     }
                 }, {passive: false});
@@ -1286,31 +1305,16 @@
                     const t = e.touches[0];
                     const rect = ovr.getBoundingClientRect();
                     const x = t.clientX - rect.left;
-                    const y = t.clientY - rect.top + ovr.scrollTop;
                     
-                    // Check if touching viewport indicator (Blue Box)
-                    const fullW = Math.max(ovr.clientWidth - 70, 100);
-                    const pxPerStep = fullW / Config.TOTAL_COLS;
-                    const iLeft = 70 + (State.viewportStartCol * pxPerStep);
-                    const iTop = (State.currentTrackIndex * 40) + 24;
-                    const visibleCols = Math.ceil((View.canvas.width - Config.KEY_WIDTH) / Config.GRID_W);
-                    const iWidth = visibleCols * pxPerStep;
-                    const iHeight = 40;
-
-                    const isTouchingIndicator = (x >= iLeft && x <= iLeft + iWidth && y >= iTop && y <= iTop + iHeight);
-                    const isTouchingTimeline = (y < 24); // Playback bar area
-
-                    // If touching the indicator, force horizontal drag mode
-                    if (isTouchingIndicator || isTouchingTimeline) {
-                        e.preventDefault();
-                        this.handleOverviewDown(this.touchToMouse(e));
+                    // Left side (Labels): Allow native vertical scroll
+                    if (x <= 70) {
+                        return; 
                     }
-                    // Otherwise let native scroll happen (pan-y in CSS) or handle tap selection
-                    else {
-                        // For track selection (tap), we can detect it on touchend if no scrolling happened,
-                        // or just use click event which fires after tap.
-                        // We do NOT preventDefault here to allow scrolling.
-                    }
+                    
+                    // Right side (Tracks): Act as Seek Bar / Viewport Control
+                    // Block vertical scroll here to allow smooth horizontal scrubbing
+                    e.preventDefault(); 
+                    this.handleOverviewDown(this.touchToMouse(e));
                 }, {passive: false});
                 
                 ovr.addEventListener('mousedown', e => this.handleOverviewDown(e));
@@ -1418,32 +1422,17 @@
                 const clickedTrackY = y - 24; 
                 const trackIdx = Math.floor(clickedTrackY / 40);
                 
-                // Always select track on touch
                 if (trackIdx >= 0 && trackIdx < State.tracks.length) {
                     State.currentTrackIndex = trackIdx;
                 }
 
-                // Calculate where the viewport SHOULD be based on click X
+                // Calculate seek bar jump
                 const clickCol = (x - 70) / pxPerStep;
-                // Center viewport on click
+                // Center the viewport on the click/touch point
                 let newViewport = Math.floor(clickCol - (visibleCols / 2));
                 
-                // If the click was roughly inside the existing viewport indicator, 
-                // we interpret as "grab", but centering is also fine for 1-tap nav.
-                // For smoother "grab" feel, we might want to check overlap.
-                const iLeft = 70 + (State.viewportStartCol * pxPerStep);
-                const iWidth = visibleCols * pxPerStep;
-                const iTop = (State.currentTrackIndex * 40) + 24; // This might be old index if we just changed it
-                
-                // If dragging existing viewport
-                if (x >= iLeft && x <= iLeft + iWidth && y >= iTop && y <= iTop + 40) {
-                     // Just init drag, don't jump yet
-                     State.dragStartViewport = State.viewportStartCol;
-                } else {
-                     // Jump to position
-                     State.viewportStartCol = Math.max(0, Math.min(Config.TOTAL_COLS - visibleCols, newViewport));
-                     State.dragStartViewport = State.viewportStartCol;
-                }
+                State.viewportStartCol = Math.max(0, Math.min(Config.TOTAL_COLS - visibleCols, newViewport));
+                State.dragStartViewport = State.viewportStartCol;
 
                 State.isDraggingViewport = true;
                 State.dragStartPos = { x: e.clientX, y: 0 };
