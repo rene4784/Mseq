@@ -47,8 +47,6 @@
             padding: 0;
             background-color: var(--bg-color);
             color: var(--text-color);
-            /* スマホのアドレスバー考慮 */
-            height: 100vh;
             height: 100dvh; 
             display: flex;
             flex-direction: column;
@@ -57,7 +55,6 @@
 
         /* --- Header --- */
         header {
-            height: var(--header-height);
             background: var(--panel-bg);
             border-bottom: 1px solid var(--border-color);
             display: flex;
@@ -138,6 +135,7 @@
             flex-grow: 1; overflow-y: auto; overflow-x: hidden;
             position: relative; padding-top: 24px;
             -webkit-overflow-scrolling: touch;
+            touch-action: none; /* Viewportドラッグを優先させるため */
         }
 
         .overview-track {
@@ -166,7 +164,6 @@
             border-top: 1px solid var(--border-color);
             display: flex; align-items: center; justify-content: space-between;
             padding: 0 16px;
-            /* セーフエリア（ホームインジケーター）考慮 */
             padding-bottom: env(safe-area-inset-bottom, 0);
             height: calc(var(--footer-height) + env(safe-area-inset-bottom, 0));
             flex-shrink: 0; 
@@ -407,7 +404,6 @@
 
     <!-- Main Body -->
     <div class="app-body">
-        <!-- Top: Canvas Input (Main) -->
         <div id="canvasArea">
             <div id="canvasInner" style="position: relative;">
                 <canvas id="musicCanvas" width="1024" height="192"></canvas>
@@ -415,7 +411,6 @@
             </div>
         </div>
 
-        <!-- Middle: Track Timeline -->
         <div id="timelineArea" class="timeline-area">
             <div id="timelineResizer" title="ドラッグしてサイズ変更">≡</div>
             <div id="playbackBarArea"></div>
@@ -1137,25 +1132,25 @@
                 const bar = document.getElementById('playbackBarArea');
                 const resizer = document.getElementById('timelineResizer');
                 
+                // --- Global Events ---
                 document.addEventListener('touchmove', e => {
-                    if (State.isDraggingSeek || State.isDraggingViewport || State.isResizingTimeline) {
+                    if (State.isDraggingSeek || State.isDraggingViewport || State.isResizingTimeline || State.interactionMode === 'PAN') {
                         e.preventDefault();
                         this.handleGlobalMove(this.touchToMouse(e));
                     }
                 }, { passive: false });
 
                 document.addEventListener('touchend', e => {
-                    if (State.isDraggingSeek || State.isDraggingViewport || State.isResizingTimeline) {
-                        this.handleGlobalUp(this.touchToMouse(e));
-                    }
+                    this.handleGlobalUp(this.touchToMouse(e));
                 });
 
+                // --- Canvas Events ---
                 cvs.addEventListener('touchstart', e => {
                     if (e.touches.length === 2) {
                         State.isTwoFingerScroll = true;
-                        State.scrollStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                        State.scrollStartPos = { x: (e.touches[0].clientX + e.touches[1].clientX)/2, y: (e.touches[0].clientY + e.touches[1].clientY)/2 };
                         const area = document.getElementById('canvasArea');
-                        State.scrollStartScroll = { x: area.scrollLeft, y: area.scrollTop };
+                        State.scrollStartScroll = { x: State.viewportStartCol, y: area.scrollTop };
                         e.preventDefault(); 
                     } 
                     else if (e.touches.length === 1) {
@@ -1168,31 +1163,38 @@
                 cvs.addEventListener('touchmove', e => {
                     if (State.isTwoFingerScroll && e.touches.length === 2) {
                         e.preventDefault();
-                        const dx = e.touches[0].clientX - State.scrollStartPos.x;
-                        const dy = e.touches[0].clientY - State.scrollStartPos.y;
+                        const currentX = (e.touches[0].clientX + e.touches[1].clientX)/2;
+                        const currentY = (e.touches[0].clientY + e.touches[1].clientY)/2;
+                        const dx = currentX - State.scrollStartPos.x;
+                        const dy = currentY - State.scrollStartPos.y;
+                        
                         const area = document.getElementById('canvasArea');
-                        area.scrollLeft = State.scrollStartScroll.x - dx;
                         area.scrollTop = State.scrollStartScroll.y - dy;
+                        
+                        const colDiff = Math.round(dx / Config.GRID_W);
+                        State.viewportStartCol = Math.max(0, Math.min(Config.TOTAL_COLS - 1, State.scrollStartScroll.x - colDiff));
+                        View.refresh();
                     } 
                     else if (e.touches.length === 1) {
                         e.preventDefault();
                         this.handleGlobalMove(this.touchToMouse(e));
                     }
                 }, {passive: false});
-                
-                cvs.addEventListener('touchend', e => {
-                    if (State.isTwoFingerScroll && e.touches.length < 2) {
-                        State.isTwoFingerScroll = false;
+
+                cvs.addEventListener('wheel', e => {
+                    if (e.shiftKey) {
+                        e.preventDefault();
+                        const delta = Math.sign(e.deltaY);
+                        State.viewportStartCol = Math.max(0, Math.min(Config.TOTAL_COLS - 1, State.viewportStartCol + delta));
+                        View.refresh();
                     }
-                    if (e.changedTouches.length > 0 && !State.isTwoFingerScroll) {
-                        this.handleGlobalUp(this.touchToMouse(e));
-                    }
-                });
+                }, { passive: false });
 
                 cvs.addEventListener('mousedown', e => this.handleCanvasDown(e));
                 window.addEventListener('mousemove', e => this.handleGlobalMove(e));
                 window.addEventListener('mouseup', e => this.handleGlobalUp(e));
 
+                // --- Overview Events ---
                 const handleTouch = (handler, e) => {
                     e.preventDefault();
                     handler(this.touchToMouse(e));
@@ -1200,23 +1202,26 @@
 
                 ovr.addEventListener('mousedown', e => this.handleOverviewDown(e));
                 ovr.addEventListener('touchstart', e => {
-                    const t = e.touches[0];
-                    const rect = ovr.getBoundingClientRect();
-                    const x = t.clientX - rect.left;
-                    if(x < 70) return; 
                     handleTouch(this.handleOverviewDown.bind(this), e);
+                }, {passive: false});
+                
+                ovr.addEventListener('touchmove', e => {
+                    if (State.isDraggingViewport) {
+                        e.preventDefault();
+                        this.handleGlobalMove(this.touchToMouse(e));
+                    }
                 }, {passive: false});
                 
                 bar.addEventListener('mousedown', e => this.handleBarDown(e));
                 bar.addEventListener('touchstart', e => handleTouch(this.handleBarDown.bind(this), e), {passive: false});
                 
-                const startResize = (e) => {
-                    e.preventDefault();
-                    State.isResizingTimeline = true;
-                    State.dragStartPos = { x: e.clientX, y: e.clientY };
-                };
-                resizer.addEventListener('mousedown', startResize);
-                resizer.addEventListener('touchstart', (e) => startResize(this.touchToMouse(e)), {passive: false});
+                resizer.addEventListener('mousedown', (e) => {
+                    e.preventDefault(); State.isResizingTimeline = true; State.dragStartPos = { x: e.clientX, y: e.clientY };
+                });
+                resizer.addEventListener('touchstart', (e) => {
+                    const m = this.touchToMouse(e);
+                    State.isResizingTimeline = true; State.dragStartPos = { x: m.clientX, y: m.clientY };
+                }, {passive: false});
 
                 this.bindControls();
             },
@@ -1225,7 +1230,7 @@
                 const t = e.touches ? (e.touches[0] || e.changedTouches[0]) : e;
                 return {
                     clientX: t.clientX, clientY: t.clientY,
-                    target: e.target, button: 0,
+                    target: e.target, button: (e.touches && e.touches.length > 1) ? 0 : (e.button || 0),
                     preventDefault: () => e.preventDefault && e.preventDefault()
                 };
             },
@@ -1241,18 +1246,27 @@
             },
 
             handleCanvasDown(e) {
+                // 中央クリックまたはShiftクリックで横移動(PAN)
+                if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+                    State.interactionMode = 'PAN';
+                    State.dragStartPos = { x: e.clientX, y: e.clientY };
+                    State.dragStartViewport = State.viewportStartCol;
+                    return;
+                }
+
                 const pos = this.getGridPos(e);
                 const track = State.getCurrentTrack();
                 if (pos.col < 0) return; 
 
+                // 右クリックで削除
                 if (e.button === 2) {
                     const noteIdx = track.notes.findIndex(n => n.y === pos.y && pos.col >= n.x && pos.col < n.x + n.length);
                     if (noteIdx !== -1) {
                         track.notes.splice(noteIdx, 1);
                         History.push();
                         View.refresh();
-                        return;
                     }
+                    return;
                 }
 
                 State.interactionMode = 'DRAW';
@@ -1274,7 +1288,7 @@
                     State.selectedNote = null;
                     const prevNotes = track.notes.filter(n => n.x <= pos.col);
                     prevNotes.sort((a, b) => b.x - a.x);
-                    const newOctave = prevNotes[0] ? prevNotes[0].octave : (State.defaultSettings.octave || 5);
+                    const newOctave = prevNotes[0] ? prevNotes[0].octave : 4;
                     State.tempNote = { x: pos.col, y: pos.y, length: 1, octave: newOctave };
                 }
                 View.refresh();
@@ -1289,26 +1303,16 @@
 
                 const fullW = Math.max(container.clientWidth - 70, 100);
                 const pxPerStep = fullW / Config.TOTAL_COLS;
-                const iLeft = 70 + (State.viewportStartCol * pxPerStep);
-                const iTop = (State.currentTrackIndex * 40) + 24;
                 const visibleCols = Math.ceil((View.canvas.width - Config.KEY_WIDTH) / Config.GRID_W);
-                const iWidth = visibleCols * pxPerStep;
-                const iHeight = 40;
 
-                if (x >= iLeft && x <= iLeft + iWidth && y >= iTop && y <= iTop + iHeight) {
-                    State.isDraggingViewport = true;
-                    State.dragStartPos = { x: e.clientX, y: 0 };
-                    State.dragStartViewport = State.viewportStartCol;
-                    if(e.preventDefault) e.preventDefault();
-                    return;
-                }
-
+                // トラック領域をクリックしたら即座に移動
                 const clickedTrackY = y - 24; 
                 const trackIdx = Math.floor(clickedTrackY / 40);
                 if (trackIdx >= 0 && trackIdx < State.tracks.length) {
                     State.currentTrackIndex = trackIdx;
                     const clickCol = (x - 70) / pxPerStep;
-                    State.viewportStartCol = Math.max(0, Math.floor(clickCol - (visibleCols / 2)));
+                    State.viewportStartCol = Math.max(0, Math.min(Config.TOTAL_COLS - visibleCols, Math.floor(clickCol - (visibleCols / 2))));
+                    
                     State.isDraggingViewport = true;
                     State.dragStartPos = { x: e.clientX, y: 0 };
                     State.dragStartViewport = State.viewportStartCol;
@@ -1353,19 +1357,27 @@
                     const pxPerStep = fullW / Config.TOTAL_COLS;
                     const deltaPx = e.clientX - State.dragStartPos.x;
                     const deltaCols = deltaPx / pxPerStep;
+                    const visibleCols = Math.ceil((View.canvas.width - Config.KEY_WIDTH) / Config.GRID_W);
+                    
                     let newStart = State.dragStartViewport + deltaCols;
-                    newStart = Math.max(0, Math.min(newStart, Config.TOTAL_COLS - 1));
+                    newStart = Math.max(0, Math.min(newStart, Config.TOTAL_COLS - visibleCols));
                     State.viewportStartCol = Math.floor(newStart);
                     View.refresh();
                     return;
                 }
+                if (State.interactionMode === 'PAN') {
+                    const dx = e.clientX - State.dragStartPos.x;
+                    const colDiff = Math.round(dx / Config.GRID_W);
+                    const visibleCols = Math.ceil((View.canvas.width - Config.KEY_WIDTH) / Config.GRID_W);
+                    State.viewportStartCol = Math.max(0, Math.min(Config.TOTAL_COLS - visibleCols, State.dragStartViewport - colDiff));
+                    View.refresh();
+                    return;
+                }
+                
                 if (State.interactionMode === 'NONE') return;
                 
-                const dx = Math.abs(e.clientX - State.noteInteractionStart.x);
-                const dy = Math.abs(e.clientY - State.noteInteractionStart.y);
-                if (dx > 5 || dy > 5) {
-                    State.isNoteMoved = true;
-                }
+                const moveDist = Math.sqrt(Math.pow(e.clientX - State.noteInteractionStart.x, 2) + Math.pow(e.clientY - State.noteInteractionStart.y, 2));
+                if (moveDist > 5) State.isNoteMoved = true;
 
                 const pos = this.getGridPos(e);
                 
@@ -1380,8 +1392,7 @@
                     const newY = (State.dragStartNoteState.y / Config.GRID_H + dy) * Config.GRID_H;
                     State.selectedNote.y = Math.max(0, Math.min(newY, (12 * Config.OCTAVES * Config.GRID_H) - Config.GRID_H));
                     const row = Math.floor(State.selectedNote.y / Config.GRID_H);
-                    const oct = (Config.OCTAVES - 1 - Math.floor(row/12)) + Config.BASE_OCTAVE;
-                    State.selectedNote.octave = oct;
+                    State.selectedNote.octave = (Config.OCTAVES - 1 - Math.floor(row/12)) + Config.BASE_OCTAVE;
                 }
                 else if (State.interactionMode === 'RESIZE' && State.selectedNote) {
                     const dx = pos.col - State.dragStartPos.x;
@@ -1394,7 +1405,12 @@
                 State.isDraggingSeek = false;
                 State.isDraggingViewport = false;
                 State.isResizingTimeline = false;
+                State.isTwoFingerScroll = false;
                 
+                if (State.interactionMode === 'PAN') {
+                    State.interactionMode = 'NONE';
+                    return;
+                }
                 if (State.interactionMode === 'NONE') return;
 
                 if (State.interactionMode === 'DRAW' && State.tempNote) {
@@ -1406,12 +1422,8 @@
                 }
                 else if (State.interactionMode === 'MOVE' || State.interactionMode === 'RESIZE') {
                     if (State.selectedNote) {
-                        if (!State.isNoteMoved) {
-                            UI.toggleSheet(true, 'sheet-note');
-                        } else {
-                            Utils.removeOverlaps(State.selectedNote);
-                            History.push();
-                        }
+                        if (!State.isNoteMoved) UI.toggleSheet(true, 'sheet-note');
+                        else { Utils.removeOverlaps(State.selectedNote); History.push(); }
                     }
                 }
                 State.interactionMode = 'NONE';
@@ -1435,25 +1447,20 @@
                 });
                 
                 const updateNote = () => {
-                    const n = State.selectedNote;
-                    if(!n) return;
+                    const n = State.selectedNote; if(!n) return;
                     const pInput = parseInt(document.getElementById('notePitch').value);
                     const oInput = parseInt(document.getElementById('noteOctave').value);
                     const octIndex = oInput - Config.BASE_OCTAVE;
                     const octaveRows = ((Config.OCTAVES - 1) - octIndex) * 12;
-                    const pitchRows = 11 - pInput;
-                    n.y = (octaveRows + pitchRows) * Config.GRID_H;
+                    n.y = (octaveRows + (11 - pInput)) * Config.GRID_H;
                     n.octave = oInput;
                     n.length = parseInt(document.getElementById('noteLength').value);
                     Utils.removeOverlaps(n);
                     View.refresh(); History.push();
                 };
-                ['notePitch', 'noteOctave', 'noteLength'].forEach(id => {
-                    document.getElementById(id).addEventListener('change', updateNote);
-                });
+                ['notePitch', 'noteOctave', 'noteLength'].forEach(id => document.getElementById(id).addEventListener('change', updateNote));
 
                 document.getElementById('tempoInput').addEventListener('input', e => { document.getElementById('valBPM').textContent = e.target.value; });
-                document.getElementById('tempoInput').addEventListener('change', () => { if(State.isPlaying) Audio.play(State.playbackPosition); });
                 document.getElementById('masterVolume').addEventListener('input', e => {
                     const val = parseFloat(e.target.value);
                     document.getElementById('valMaster').textContent = Math.round(val * 100) + '%';
@@ -1480,27 +1487,19 @@
                 Utils.download(JSON.stringify(data), 'song.json', 'application/json');
             },
             loadJson(e) {
-                const file = e.target.files[0];
-                if (!file) return;
+                const file = e.target.files[0]; if (!file) return;
                 const reader = new FileReader();
                 reader.onload = (evt) => {
                     try {
                         const data = JSON.parse(evt.target.result);
                         if (data.tracks) {
                             State.tracks = data.tracks;
-                            if (data.bpm) {
-                                document.getElementById('tempoInput').value = data.bpm;
-                                document.getElementById('valBPM').textContent = data.bpm;
-                            }
-                            State.currentTrackIndex = 0;
-                            State.selectedNote = null;
-                            History.init();
-                            View.refresh();
+                            if (data.bpm) { document.getElementById('tempoInput').value = data.bpm; document.getElementById('valBPM').textContent = data.bpm; }
+                            State.currentTrackIndex = 0; State.selectedNote = null; History.init(); View.refresh();
                         }
                     } catch(err) { alert("Load Error: " + err); }
                 };
-                reader.readAsText(file);
-                e.target.value = ''; 
+                reader.readAsText(file); e.target.value = ''; 
             }
         };
 
