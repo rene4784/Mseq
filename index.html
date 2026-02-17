@@ -1265,6 +1265,12 @@
                 const bar = document.getElementById('playbackBarArea');
                 const resizer = document.getElementById('timelineResizer');
                 
+                // Helper for touch events
+                const handleTouch = (handler, e) => {
+                    if (e.cancelable) e.preventDefault();
+                    handler(this.touchToMouse(e));
+                };
+                
                 // --- Global Events ---
                 document.addEventListener('touchmove', e => {
                     if (State.isDraggingSeek || State.isDraggingViewport || State.isDraggingViewportHandle || State.isResizingTimeline || State.interactionMode === 'PAN') {
