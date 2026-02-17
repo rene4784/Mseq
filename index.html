@@ -137,8 +137,6 @@
             flex-grow: 1; overflow-y: auto; overflow-x: hidden;
             position: relative; padding-top: 24px;
             -webkit-overflow-scrolling: touch;
-            /* 右側のタッチ制御はJSで行うが、左側のスクロールのためにpan-yを残すか検討したが、
-               イベントリスナーでpreventDefault制御する方が確実なため初期値に戻す */
             touch-action: none; 
         }
 
@@ -321,12 +319,6 @@
             </div>
 
             <div class="drawer-section">
-                <h4>Track Actions</h4>
-                <button class="menu-item danger" id="menuClearTrackBtn">トラッククリア (Clear)</button>
-                <button class="menu-item danger" id="menuDeleteTrackBtn">トラック削除 (Delete)</button>
-            </div>
-
-            <div class="drawer-section">
                 <h4>File Actions</h4>
                 <button class="menu-item" id="exportFlmmlBtn">FlMML出力</button>
                 <button class="menu-item" id="saveBtn">プロジェクト保存 (JSON)</button>
@@ -348,6 +340,7 @@
             <div style="display:flex; border-bottom:1px solid #eee; margin-bottom:20px;">
                 <button class="tab-link active" data-target="sheet-sound" style="border:none; border-bottom:2px solid var(--accent-color); background:none; flex:1; padding: 10px;">音色</button>
                 <button class="tab-link" data-target="sheet-note" style="border:none; background:none; flex:1; color:#888; padding: 10px;">ノート情報</button>
+                <button class="tab-link" data-target="sheet-track" style="border:none; background:none; flex:1; color:#888; padding: 10px;">トラック</button>
             </div>
 
             <!-- SOUND TAB -->
@@ -425,6 +418,15 @@
                     ノートを選択していません
                 </div>
             </div>
+
+            <!-- TRACK ACTIONS TAB -->
+            <div id="sheet-track" style="display:none;">
+                <div style="padding: 10px;">
+                    <p style="font-size:13px; color:#666; margin-bottom:20px;">現在のトラックに対する操作です。</p>
+                    <button class="menu-item danger" id="sheetClearTrackBtn" style="margin-bottom:15px;">トラックのノートを全てクリア</button>
+                    <button class="menu-item danger" id="sheetDeleteTrackBtn">このトラックを削除</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -479,6 +481,7 @@
             GRID_W: 16,
             GRID_H: 16,
             TOTAL_COLS: 1024, 
+            LABEL_WIDTH: 70, // Track label width
             PITCHES: ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'],
             OCTAVES: 8,
             BASE_OCTAVE: 0,
@@ -536,15 +539,15 @@
                     }
                 };
                 
-                // Track Menu Actions
-                document.getElementById('menuClearTrackBtn').onclick = () => {
+                // Track Actions (Moved to Sheet)
+                document.getElementById('sheetClearTrackBtn').onclick = () => {
                     State.clearCurrentTrack();
-                    this.toggleDrawer('menuDrawer', false);
+                    this.toggleSheet(false);
                 };
                 
-                document.getElementById('menuDeleteTrackBtn').onclick = () => {
+                document.getElementById('sheetDeleteTrackBtn').onclick = () => {
                     State.deleteTrack(State.currentTrackIndex);
-                    this.toggleDrawer('menuDrawer', false);
+                    this.toggleSheet(false);
                 };
 
                 document.querySelectorAll('.tab-link').forEach(btn => {
@@ -575,6 +578,7 @@
                 
                 document.getElementById('sheet-sound').style.display = 'none';
                 document.getElementById('sheet-note').style.display = 'none';
+                document.getElementById('sheet-track').style.display = 'none';
                 document.getElementById(targetId).style.display = 'block';
             },
 
@@ -1078,7 +1082,7 @@
                 container.innerHTML = '';
                 if(container.clientWidth === 0) return;
                 
-                const fullW = Math.max(container.clientWidth - 70, 100);
+                const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH, 100);
                 const pxPerStep = fullW / Config.TOTAL_COLS;
                 
                 State.tracks.forEach((track, idx) => {
@@ -1115,7 +1119,7 @@
                 indicator.className = 'viewport-indicator';
                 const visibleCols = Math.ceil((this.canvas.width - Config.KEY_WIDTH) / Config.GRID_W);
                 const iWidth = (visibleCols / Config.TOTAL_COLS) * fullW;
-                const iLeft = 70 + ((State.viewportStartCol / Config.TOTAL_COLS) * fullW);
+                const iLeft = Config.LABEL_WIDTH + ((State.viewportStartCol / Config.TOTAL_COLS) * fullW);
                 const iTop = (State.currentTrackIndex * 40) + 24; 
                 indicator.style.left = `${iLeft}px`; indicator.style.top = `${iTop}px`;
                 indicator.style.width = `${Math.max(2, iWidth)}px`; indicator.style.height = `40px`;
@@ -1127,9 +1131,9 @@
                 document.querySelectorAll('.overview-playback-indicator').forEach(el => el.remove());
                 const pos = State.playbackPosition;
                 const container = this.overviewContainer;
-                const fullW = Math.max(container.clientWidth - 70, 100);
+                const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH, 100);
                 const pxPerStep = fullW / Config.TOTAL_COLS;
-                const left = 70 + (pos * pxPerStep);
+                const left = Config.LABEL_WIDTH + (pos * pxPerStep);
                 
                 const tlBar = document.getElementById('timelinePlaybackIndicator');
                 if (tlBar) { tlBar.style.left = `${left}px`; tlBar.style.display = 'block'; }
@@ -1227,25 +1231,8 @@
 
                 // --- Canvas Events ---
                 cvs.addEventListener('touchstart', e => {
-                    // Multi-touch cancel logic
                     if (e.touches.length >= 2) {
                         State.isTwoFingerScroll = true;
-                        
-                        // Cancel any pending edit action immediately
-                        if (State.interactionMode === 'DRAW') {
-                            State.tempNote = null; 
-                        } 
-                        else if ((State.interactionMode === 'MOVE' || State.interactionMode === 'RESIZE') && State.selectedNote && State.dragStartNoteState) {
-                            // Revert changes
-                            State.selectedNote.x = State.dragStartNoteState.x;
-                            State.selectedNote.y = State.dragStartNoteState.y;
-                            State.selectedNote.length = State.dragStartNoteState.length;
-                            State.selectedNote.octave = State.dragStartNoteState.octave;
-                        }
-                        
-                        State.interactionMode = 'NONE';
-                        View.refresh();
-
                         State.scrollStartPos = { x: (e.touches[0].clientX + e.touches[1].clientX)/2, y: (e.touches[0].clientY + e.touches[1].clientY)/2 };
                         const area = document.getElementById('canvasArea');
                         State.scrollStartScroll = { x: State.viewportStartCol, y: area.scrollTop };
@@ -1253,9 +1240,7 @@
                     } 
                     else if (e.touches.length === 1) {
                         State.isTwoFingerScroll = false;
-                        // Allow browser defaults for potential long press menus unless it conflicts
-                        // but generally we want to prevent scrolling while drawing
-                        // e.preventDefault(); 
+                        // e.preventDefault(); // Don't preventDefault here, let handleCanvasDown decide or let browser scroll if needed
                         this.handleCanvasDown(this.touchToMouse(e));
                     }
                 }, {passive: false});
@@ -1302,29 +1287,26 @@
 
                 // Overview: Touch Start
                 ovr.addEventListener('touchstart', e => {
+                    // Force single touch logic to avoid interference
+                    if(e.touches.length > 1) return;
+
                     const t = e.touches[0];
                     const rect = ovr.getBoundingClientRect();
                     const x = t.clientX - rect.left;
                     
                     // Left side (Labels): Allow native vertical scroll
-                    if (x <= 70) {
+                    if (x <= Config.LABEL_WIDTH) {
                         return; 
                     }
                     
                     // Right side (Tracks): Act as Seek Bar / Viewport Control
-                    // Block vertical scroll here to allow smooth horizontal scrubbing
                     e.preventDefault(); 
                     this.handleOverviewDown(this.touchToMouse(e));
                 }, {passive: false});
                 
                 ovr.addEventListener('mousedown', e => this.handleOverviewDown(e));
                 
-                ovr.addEventListener('touchmove', e => {
-                    if (State.isDraggingViewport) {
-                        e.preventDefault();
-                        this.handleGlobalMove(this.touchToMouse(e));
-                    }
-                }, {passive: false});
+                // No need for separate touchmove here as global touchmove handles dragging state
                 
                 bar.addEventListener('mousedown', e => this.handleBarDown(e));
                 bar.addEventListener('touchstart', e => handleTouch(this.handleBarDown.bind(this), e), {passive: false});
@@ -1360,7 +1342,7 @@
             },
 
             handleCanvasDown(e) {
-                if (State.isTwoFingerScroll) return; // Block editing if multi-touch
+                if (State.isTwoFingerScroll) return;
 
                 if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
                     State.interactionMode = 'PAN';
@@ -1413,9 +1395,10 @@
                 const rect = container.getBoundingClientRect();
                 const x = e.clientX - rect.left;
                 const y = e.clientY - rect.top + container.scrollTop;
-                if (x < 70) return; 
+                
+                if (x <= Config.LABEL_WIDTH) return; 
 
-                const fullW = Math.max(container.clientWidth - 70, 100);
+                const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH, 100);
                 const pxPerStep = fullW / Config.TOTAL_COLS;
                 const visibleCols = Math.ceil((View.canvas.width - Config.KEY_WIDTH) / Config.GRID_W);
 
@@ -1426,16 +1409,14 @@
                     State.currentTrackIndex = trackIdx;
                 }
 
-                // Calculate seek bar jump
-                const clickCol = (x - 70) / pxPerStep;
-                // Center the viewport on the click/touch point
+                // Center viewport on click
+                const clickCol = (x - Config.LABEL_WIDTH) / pxPerStep;
                 let newViewport = Math.floor(clickCol - (visibleCols / 2));
                 
                 State.viewportStartCol = Math.max(0, Math.min(Config.TOTAL_COLS - visibleCols, newViewport));
-                State.dragStartViewport = State.viewportStartCol;
-
+                
                 State.isDraggingViewport = true;
-                State.dragStartPos = { x: e.clientX, y: 0 };
+                // No need for dragStartPos X relative calculation, we use absolute mapping in handleGlobalMove
                 View.refresh();
             },
             
@@ -1448,9 +1429,9 @@
                 const bar = document.getElementById('playbackBarArea');
                 const rect = bar.getBoundingClientRect();
                 let x = e.clientX - rect.left;
-                const fullW = rect.width - 70; 
+                const fullW = rect.width - Config.LABEL_WIDTH; 
                 x = Math.max(0, Math.min(x, rect.width));
-                let relX = x - 70;
+                let relX = x - Config.LABEL_WIDTH;
                 if (relX < 0) relX = 0; if (relX > fullW) relX = fullW;
                 const pct = relX / fullW;
                 const step = Math.floor(pct * Config.TOTAL_COLS);
@@ -1470,20 +1451,25 @@
                     return;
                 }
                 if (State.isDraggingSeek) { this.updateSeek(e); return; }
+                
                 if (State.isDraggingViewport) {
                     const container = document.getElementById('overviewContainer');
-                    const fullW = Math.max(container.clientWidth - 70, 100);
+                    const rect = container.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    
+                    // Absolute positioning mapping (Seek-bar like behavior)
+                    const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH, 100);
                     const pxPerStep = fullW / Config.TOTAL_COLS;
-                    const deltaPx = e.clientX - State.dragStartPos.x;
-                    const deltaCols = deltaPx / pxPerStep;
                     const visibleCols = Math.ceil((View.canvas.width - Config.KEY_WIDTH) / Config.GRID_W);
                     
-                    let newStart = State.dragStartViewport + deltaCols;
-                    newStart = Math.max(0, Math.min(newStart, Config.TOTAL_COLS - visibleCols));
-                    State.viewportStartCol = Math.floor(newStart);
+                    const clickCol = (x - Config.LABEL_WIDTH) / pxPerStep;
+                    let newViewport = Math.floor(clickCol - (visibleCols / 2));
+                    State.viewportStartCol = Math.max(0, Math.min(Config.TOTAL_COLS - visibleCols, newViewport));
+                    
                     View.refresh();
                     return;
                 }
+                
                 if (State.interactionMode === 'PAN') {
                     const dx = e.clientX - State.dragStartPos.x;
                     const colDiff = Math.round(dx / Config.GRID_W);
