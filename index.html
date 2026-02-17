@@ -593,8 +593,31 @@
             },
 
             showConfirm(title, message, onConfirm) {
+                document.querySelector('#confirmModal h3').textContent = title;
                 document.getElementById('modalMessage').textContent = message;
+                
+                const cancelBtn = document.getElementById('modalCancelBtn');
+                const confirmBtn = document.getElementById('modalConfirmBtn');
+                cancelBtn.style.display = 'inline-flex';
+                confirmBtn.textContent = '実行';
+                confirmBtn.className = 'danger';
+
                 this.confirmCallback = onConfirm;
+                document.getElementById('overlay').classList.add('active');
+                document.getElementById('confirmModal').classList.add('active');
+            },
+
+            showAlert(title, message) {
+                document.querySelector('#confirmModal h3').textContent = title;
+                document.getElementById('modalMessage').textContent = message;
+                
+                const cancelBtn = document.getElementById('modalCancelBtn');
+                const confirmBtn = document.getElementById('modalConfirmBtn');
+                cancelBtn.style.display = 'none';
+                confirmBtn.textContent = 'OK';
+                confirmBtn.className = 'primary';
+
+                this.confirmCallback = null;
                 document.getElementById('overlay').classList.add('active');
                 document.getElementById('confirmModal').classList.add('active');
             },
@@ -715,7 +738,7 @@
             },
 
             deleteTrack(index) {
-                if (this.tracks.length <= 1) return alert("最後のトラックは削除できません");
+                if (this.tracks.length <= 1) return UI.showAlert("確認", "最後のトラックは削除できません");
                 UI.showConfirm('確認', `トラック ${index + 1} を削除しますか？`, () => {
                     this.tracks.splice(index, 1);
                     if (this.currentTrackIndex >= this.tracks.length) this.currentTrackIndex = this.tracks.length - 1;
