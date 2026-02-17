@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Mseq - FlMML Sequencer</title>
     <script src="https://unpkg.com/flmml-on-html5@2.0.3/dist/flmml-on-html5.js"></script>
     <style>
@@ -47,7 +47,9 @@
             padding: 0;
             background-color: var(--bg-color);
             color: var(--text-color);
+            /* スマホのアドレスバー考慮 */
             height: 100vh;
+            height: 100dvh; 
             display: flex;
             flex-direction: column;
             overflow: hidden;
@@ -62,6 +64,8 @@
             justify-content: space-between;
             align-items: center;
             padding: 0 16px;
+            padding-top: env(safe-area-inset-top, 0);
+            height: calc(var(--header-height) + env(safe-area-inset-top, 0));
             flex-shrink: 0;
             z-index: 20;
         }
@@ -87,11 +91,9 @@
             flex-grow: 1;
             position: relative;
             background-color: #333;
-            /* Enable vertical scroll for mouse wheel, disable horizontal default to avoid layout issues */
             overflow-y: auto; 
             overflow-x: hidden;
             display: block; 
-            /* iOS smooth scroll */
             -webkit-overflow-scrolling: touch;
         }
 
@@ -99,7 +101,6 @@
             display: block;
             background: #fff;
             box-shadow: 0 0 10px rgba(0,0,0,0.3);
-            /* Disable default touch actions (pan/zoom) to handle them in JS */
             touch-action: none; 
         }
 
@@ -161,10 +162,15 @@
 
         /* --- Footer --- */
         .footer-controls {
-            height: var(--footer-height); background: var(--panel-bg);
+            background: var(--panel-bg);
             border-top: 1px solid var(--border-color);
             display: flex; align-items: center; justify-content: space-between;
-            padding: 0 16px; flex-shrink: 0; z-index: 30;
+            padding: 0 16px;
+            /* セーフエリア（ホームインジケーター）考慮 */
+            padding-bottom: env(safe-area-inset-bottom, 0);
+            height: calc(var(--footer-height) + env(safe-area-inset-bottom, 0));
+            flex-shrink: 0; 
+            z-index: 30;
             box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
         }
 
@@ -213,19 +219,28 @@
             display: flex; flex-direction: column;
         }
         .drawer-menu.active { right: 0; }
-        .drawer-header { padding: 16px; border-bottom: 1px solid #eee; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
+        .drawer-header { 
+            padding: 16px; 
+            padding-top: calc(16px + env(safe-area-inset-top, 0));
+            border-bottom: 1px solid #eee; 
+            font-weight: bold; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+        }
         .drawer-content { padding: 16px; overflow-y: auto; flex-grow: 1; }
         .drawer-section { margin-bottom: 24px; }
         .drawer-section h4 { margin: 0 0 12px 0; font-size: 12px; color: #888; text-transform: uppercase; }
         .menu-item { display: block; width: 100%; text-align: left; margin-bottom: 8px; border: none; background: #f8f9fa; padding: 12px; font-size: 13px; border-radius: 4px; }
 
         .bottom-sheet {
-            position: fixed; bottom: -450px; left: 50%; transform: translateX(-50%); width: 100%; max-width: 600px; height: 420px;
+            position: fixed; bottom: -450px; left: 50%; transform: translateX(-50%); width: 100%; max-width: 600px; height: 450px;
             background: #fff; z-index: 100;
             transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             border-radius: 16px 16px 0 0;
             box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
             display: flex; flex-direction: column;
+            padding-bottom: env(safe-area-inset-bottom, 0);
         }
         .bottom-sheet.active { bottom: 0; }
         .sheet-handle { width: 40px; height: 4px; background: #dee2e6; margin: 10px auto; border-radius: 2px; }
@@ -590,7 +605,6 @@
             playbackPosition: 0,
             startTime: 0,
             
-            // New state for click vs drag detection on notes
             noteInteractionStart: { x: 0, y: 0 },
             isNoteMoved: false,
             
@@ -609,7 +623,6 @@
                     View.refresh();
                 });
                 
-                // Initial Scroll
                 setTimeout(() => {
                     const canvasArea = document.getElementById('canvasArea');
                     const targetY = (Config.OCTAVES * 12 * Config.GRID_H) * 0.5;
@@ -1124,7 +1137,6 @@
                 const bar = document.getElementById('playbackBarArea');
                 const resizer = document.getElementById('timelineResizer');
                 
-                // --- Global Drag Handler ---
                 document.addEventListener('touchmove', e => {
                     if (State.isDraggingSeek || State.isDraggingViewport || State.isResizingTimeline) {
                         e.preventDefault();
@@ -1138,12 +1150,6 @@
                     }
                 });
 
-                // --- Canvas PC Scroll Support (Wheel) ---
-                const canvasArea = document.getElementById('canvasArea');
-                // No special handling needed if overflow: auto handles it, but just in case:
-                // We leave it to browser native scroll.
-
-                // --- Canvas Touch Logic (Smart Pan/Zoom) ---
                 cvs.addEventListener('touchstart', e => {
                     if (e.touches.length === 2) {
                         State.isTwoFingerScroll = true;
@@ -1183,12 +1189,10 @@
                     }
                 });
 
-                // Mouse fallback
                 cvs.addEventListener('mousedown', e => this.handleCanvasDown(e));
                 window.addEventListener('mousemove', e => this.handleGlobalMove(e));
                 window.addEventListener('mouseup', e => this.handleGlobalUp(e));
 
-                // --- Overview & Bar ---
                 const handleTouch = (handler, e) => {
                     e.preventDefault();
                     handler(this.touchToMouse(e));
@@ -1199,7 +1203,7 @@
                     const t = e.touches[0];
                     const rect = ovr.getBoundingClientRect();
                     const x = t.clientX - rect.left;
-                    if(x < 70) return; // ignore label area
+                    if(x < 70) return; 
                     handleTouch(this.handleOverviewDown.bind(this), e);
                 }, {passive: false});
                 
@@ -1253,9 +1257,7 @@
 
                 State.interactionMode = 'DRAW';
                 State.dragStartPos = { x: pos.col, y: pos.row };
-                // Reset move flag
                 State.isNoteMoved = false;
-                // Capture exact pixel start for movement threshold
                 State.noteInteractionStart = { x: e.clientX, y: e.clientY };
 
                 const clickedNote = track.notes.find(n => n.y === pos.y && pos.col >= n.x && pos.col < n.x + n.length);
@@ -1268,7 +1270,6 @@
                     } else {
                         State.interactionMode = 'MOVE';
                     }
-                    // Don't show sheet immediately
                 } else {
                     State.selectedNote = null;
                     const prevNotes = track.notes.filter(n => n.x <= pos.col);
@@ -1360,7 +1361,6 @@
                 }
                 if (State.interactionMode === 'NONE') return;
                 
-                // Movement threshold check
                 const dx = Math.abs(e.clientX - State.noteInteractionStart.x);
                 const dy = Math.abs(e.clientY - State.noteInteractionStart.y);
                 if (dx > 5 || dy > 5) {
@@ -1406,7 +1406,6 @@
                 }
                 else if (State.interactionMode === 'MOVE' || State.interactionMode === 'RESIZE') {
                     if (State.selectedNote) {
-                        // If it was just a click (no move), toggle menu
                         if (!State.isNoteMoved) {
                             UI.toggleSheet(true, 'sheet-note');
                         } else {
@@ -1474,7 +1473,7 @@
         const Storage = {
             exportMML() {
                 const mml = Audio.generateMML(0);
-                Utils.download(mml, 'song.mml', 'text/plain');
+                Utils.download(mml, 'song.flmml', 'text/plain');
             },
             saveJson() {
                 const data = { tracks: State.tracks, bpm: document.getElementById('tempoInput').value, version: 2 };
