@@ -137,7 +137,7 @@
             flex-grow: 1; overflow-y: auto; overflow-x: hidden;
             position: relative; padding-top: 24px;
             -webkit-overflow-scrolling: touch;
-            touch-action: none; 
+            touch-action: pan-y; /* 縦スクロールは許可、横はJSで制御 */
         }
 
         .overview-track {
@@ -153,11 +153,6 @@
             font-size: 10px; font-weight: 600; color: #555; position: relative; gap: 2px; z-index: 5;
         }
         
-        .track-btn-group { display: flex; gap: 8px; }
-        .icon-btn { cursor: pointer; font-size: 14px; color: #adb5bd; padding: 2px; }
-        .icon-btn:hover { color: var(--text-color); }
-        .icon-btn.danger:hover { color: var(--danger-color); }
-
         .overview-track-content { flex-grow: 1; position: relative; }
 
         /* --- Footer --- */
@@ -173,7 +168,7 @@
             box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
         }
 
-        .control-group { display: flex; gap: 12px; align-items: center; }
+        .control-group { display: flex; gap: 8px; align-items: center; }
 
         button {
             background: #fff; border: 1px solid #ced4da; border-radius: 4px;
@@ -324,11 +319,16 @@
             </div>
 
             <div class="drawer-section">
+                <h4>Track Actions</h4>
+                <button class="menu-item danger" id="menuClearTrackBtn">トラッククリア (Clear)</button>
+                <button class="menu-item danger" id="menuDeleteTrackBtn">トラック削除 (Delete)</button>
+            </div>
+
+            <div class="drawer-section">
                 <h4>File Actions</h4>
                 <button class="menu-item" id="exportFlmmlBtn">FlMML出力</button>
                 <button class="menu-item" id="saveBtn">プロジェクト保存 (JSON)</button>
                 <button class="menu-item" id="loadBtn">読込 (JSON)</button>
-                <button class="menu-item danger" id="clearTrackBtn" style="margin-top:10px;">トラッククリア</button>
                 <input type="file" id="fileInput" style="display: none;">
             </div>
         </div>
@@ -455,6 +455,7 @@
     <div class="footer-controls">
         <div class="control-group">
             <button id="addTrackBtn" style="height:32px;">+ Trk</button>
+            <button id="editTrackBtn" style="height:32px;">Edit</button>
         </div>
         
         <button class="primary circle-btn" id="playBtn" style="width:48px; height:48px;">
@@ -518,6 +519,7 @@
                 document.getElementById('closeSheetBtn').onclick = () => this.toggleSheet(false);
                 document.getElementById('closeSheetHandle').onclick = () => this.toggleSheet(false);
 
+                // Note Delete
                 document.getElementById('btnDeleteNote').onclick = () => {
                     if(State.selectedNote) {
                         const track = State.getCurrentTrack();
@@ -530,6 +532,17 @@
                             this.toggleSheet(false);
                         }
                     }
+                };
+                
+                // Track Menu Actions
+                document.getElementById('menuClearTrackBtn').onclick = () => {
+                    State.clearCurrentTrack();
+                    this.toggleDrawer('menuDrawer', false);
+                };
+                
+                document.getElementById('menuDeleteTrackBtn').onclick = () => {
+                    State.deleteTrack(State.currentTrackIndex);
+                    this.toggleDrawer('menuDrawer', false);
                 };
 
                 document.querySelectorAll('.tab-link').forEach(btn => {
@@ -1075,16 +1088,11 @@
                     label.className = 'overview-track-label';
                     label.innerHTML = `<div>Trk ${idx + 1}</div>`;
                     
-                    const btns = document.createElement('div');
-                    btns.className = 'track-btn-group';
-                    const settingBtn = document.createElement('span'); settingBtn.className = 'icon-btn'; settingBtn.innerHTML = '⚙';
-                    settingBtn.onclick = (e) => { e.stopPropagation(); State.currentTrackIndex = idx; UI.toggleSheet(true, 'sheet-sound'); View.refresh(); };
-                    const delBtn = document.createElement('span'); delBtn.className = 'icon-btn danger'; delBtn.innerHTML = '🗑';
-                    delBtn.onclick = (e) => { e.stopPropagation(); State.deleteTrack(idx); };
-                    
-                    if (State.tracks.length > 1) btns.appendChild(delBtn);
-                    btns.appendChild(settingBtn);
-                    label.appendChild(btns);
+                    // Buttonless Track Label (Select by Tap)
+                    label.onclick = (e) => { 
+                        State.currentTrackIndex = idx; 
+                        View.refresh(); 
+                    };
                     
                     const content = document.createElement('div');
                     content.className = 'overview-track-content';
@@ -1203,6 +1211,7 @@
                 const bar = document.getElementById('playbackBarArea');
                 const resizer = document.getElementById('timelineResizer');
                 
+                // --- Global Events ---
                 document.addEventListener('touchmove', e => {
                     if (State.isDraggingSeek || State.isDraggingViewport || State.isResizingTimeline || State.interactionMode === 'PAN') {
                         e.preventDefault();
@@ -1214,8 +1223,9 @@
                     this.handleGlobalUp(this.touchToMouse(e));
                 });
 
+                // --- Canvas Events ---
                 cvs.addEventListener('touchstart', e => {
-                    if (e.touches.length === 2) {
+                    if (e.touches.length >= 2) {
                         State.isTwoFingerScroll = true;
                         State.scrollStartPos = { x: (e.touches[0].clientX + e.touches[1].clientX)/2, y: (e.touches[0].clientY + e.touches[1].clientY)/2 };
                         const area = document.getElementById('canvasArea');
@@ -1224,13 +1234,15 @@
                     } 
                     else if (e.touches.length === 1) {
                         State.isTwoFingerScroll = false;
+                        // Don't preventDefault here to allow potential long-press context menu or let handleCanvasDown decide
+                        // However, to prevent scrolling while drawing, we often need preventDefault.
                         e.preventDefault(); 
                         this.handleCanvasDown(this.touchToMouse(e));
                     }
                 }, {passive: false});
                 
                 cvs.addEventListener('touchmove', e => {
-                    if (State.isTwoFingerScroll && e.touches.length === 2) {
+                    if (State.isTwoFingerScroll && e.touches.length >= 2) {
                         e.preventDefault();
                         const currentX = (e.touches[0].clientX + e.touches[1].clientX)/2;
                         const currentY = (e.touches[0].clientY + e.touches[1].clientY)/2;
@@ -1263,15 +1275,45 @@
                 window.addEventListener('mousemove', e => this.handleGlobalMove(e));
                 window.addEventListener('mouseup', e => this.handleGlobalUp(e));
 
+                // --- Overview Events ---
                 const handleTouch = (handler, e) => {
                     e.preventDefault();
                     handler(this.touchToMouse(e));
                 };
 
-                ovr.addEventListener('mousedown', e => this.handleOverviewDown(e));
+                // Overview: Touch Start
                 ovr.addEventListener('touchstart', e => {
-                    handleTouch(this.handleOverviewDown.bind(this), e);
+                    const t = e.touches[0];
+                    const rect = ovr.getBoundingClientRect();
+                    const x = t.clientX - rect.left;
+                    const y = t.clientY - rect.top + ovr.scrollTop;
+                    
+                    // Check if touching viewport indicator (Blue Box)
+                    const fullW = Math.max(ovr.clientWidth - 70, 100);
+                    const pxPerStep = fullW / Config.TOTAL_COLS;
+                    const iLeft = 70 + (State.viewportStartCol * pxPerStep);
+                    const iTop = (State.currentTrackIndex * 40) + 24;
+                    const visibleCols = Math.ceil((View.canvas.width - Config.KEY_WIDTH) / Config.GRID_W);
+                    const iWidth = visibleCols * pxPerStep;
+                    const iHeight = 40;
+
+                    const isTouchingIndicator = (x >= iLeft && x <= iLeft + iWidth && y >= iTop && y <= iTop + iHeight);
+                    const isTouchingTimeline = (y < 24); // Playback bar area
+
+                    // If touching the indicator, force horizontal drag mode
+                    if (isTouchingIndicator || isTouchingTimeline) {
+                        e.preventDefault();
+                        this.handleOverviewDown(this.touchToMouse(e));
+                    }
+                    // Otherwise let native scroll happen (pan-y in CSS) or handle tap selection
+                    else {
+                        // For track selection (tap), we can detect it on touchend if no scrolling happened,
+                        // or just use click event which fires after tap.
+                        // We do NOT preventDefault here to allow scrolling.
+                    }
                 }, {passive: false});
+                
+                ovr.addEventListener('mousedown', e => this.handleOverviewDown(e));
                 
                 ovr.addEventListener('touchmove', e => {
                     if (State.isDraggingViewport) {
@@ -1314,6 +1356,8 @@
             },
 
             handleCanvasDown(e) {
+                if (State.isTwoFingerScroll) return; // Block editing if multi-touch
+
                 if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
                     State.interactionMode = 'PAN';
                     State.dragStartPos = { x: e.clientX, y: e.clientY };
@@ -1373,16 +1417,37 @@
 
                 const clickedTrackY = y - 24; 
                 const trackIdx = Math.floor(clickedTrackY / 40);
+                
+                // Always select track on touch
                 if (trackIdx >= 0 && trackIdx < State.tracks.length) {
                     State.currentTrackIndex = trackIdx;
-                    const clickCol = (x - 70) / pxPerStep;
-                    State.viewportStartCol = Math.max(0, Math.min(Config.TOTAL_COLS - visibleCols, Math.floor(clickCol - (visibleCols / 2))));
-                    
-                    State.isDraggingViewport = true;
-                    State.dragStartPos = { x: e.clientX, y: 0 };
-                    State.dragStartViewport = State.viewportStartCol;
-                    View.refresh();
                 }
+
+                // Calculate where the viewport SHOULD be based on click X
+                const clickCol = (x - 70) / pxPerStep;
+                // Center viewport on click
+                let newViewport = Math.floor(clickCol - (visibleCols / 2));
+                
+                // If the click was roughly inside the existing viewport indicator, 
+                // we interpret as "grab", but centering is also fine for 1-tap nav.
+                // For smoother "grab" feel, we might want to check overlap.
+                const iLeft = 70 + (State.viewportStartCol * pxPerStep);
+                const iWidth = visibleCols * pxPerStep;
+                const iTop = (State.currentTrackIndex * 40) + 24; // This might be old index if we just changed it
+                
+                // If dragging existing viewport
+                if (x >= iLeft && x <= iLeft + iWidth && y >= iTop && y <= iTop + 40) {
+                     // Just init drag, don't jump yet
+                     State.dragStartViewport = State.viewportStartCol;
+                } else {
+                     // Jump to position
+                     State.viewportStartCol = Math.max(0, Math.min(Config.TOTAL_COLS - visibleCols, newViewport));
+                     State.dragStartViewport = State.viewportStartCol;
+                }
+
+                State.isDraggingViewport = true;
+                State.dragStartPos = { x: e.clientX, y: 0 };
+                View.refresh();
             },
             
             handleBarDown(e) {
@@ -1499,6 +1564,8 @@
                 document.getElementById('musicCanvas').addEventListener('contextmenu', e => e.preventDefault());
                 
                 document.getElementById('addTrackBtn').onclick = () => { State.addTrack(); View.refresh(); };
+                document.getElementById('editTrackBtn').onclick = () => { UI.toggleSheet(true, 'sheet-sound'); };
+
                 const bindRange = (id, prop) => {
                     document.getElementById(id).addEventListener('input', e => {
                         State.getCurrentTrack().settings[prop] = parseInt(e.target.value);
