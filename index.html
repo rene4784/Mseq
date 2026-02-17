@@ -27,6 +27,8 @@
             --note-selected-bg: rgba(255, 107, 107, 0.95);
             --note-selected-border: #c92a2a;
             --note-temp-bg: rgba(51, 154, 240, 0.5);
+            --note-ghost-bg: rgba(200, 200, 200, 0.25);
+            --note-ghost-border: rgba(150, 150, 150, 0.3);
             
             --playback-bar-color: #fa5252;
             --viewport-border: #228be6;
@@ -135,7 +137,7 @@
             flex-grow: 1; overflow-y: auto; overflow-x: hidden;
             position: relative; padding-top: 24px;
             -webkit-overflow-scrolling: touch;
-            touch-action: none; /* Viewportドラッグを優先させるため */
+            touch-action: none; 
         }
 
         .overview-track {
@@ -262,6 +264,15 @@
         .adsr-val { float: right; font-weight: normal; color: #333; }
         
         .play-icon { width: 20px; height: 20px; fill: white; }
+
+        /* Toggle Switch */
+        .toggle-row { display: flex; justify-content: space-between; align-items: center; background: #f8f9fa; padding: 10px; border-radius: 4px; margin-bottom: 8px; font-size: 13px; }
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider-round { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 24px; }
+        .slider-round:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider-round { background-color: var(--accent-color); }
+        input:checked + .slider-round:before { transform: translateX(20px); }
     </style>
 </head>
 
@@ -293,6 +304,25 @@
                 <div class="slider-row"><span>Master Vol</span><span id="valMaster">70%</span></div>
                 <input type="range" id="masterVolume" min="0" max="1" step="0.01" value="0.7">
             </div>
+
+            <div class="drawer-section">
+                <h4>Display Options</h4>
+                <div class="toggle-row">
+                    <span>他トラックの表示 (Ghost)</span>
+                    <label class="switch">
+                        <input type="checkbox" id="toggleGhostNotes" checked>
+                        <span class="slider-round"></span>
+                    </label>
+                </div>
+                <div class="toggle-row">
+                    <span>自動スクロール</span>
+                    <label class="switch">
+                        <input type="checkbox" id="toggleAutoScroll" checked>
+                        <span class="slider-round"></span>
+                    </label>
+                </div>
+            </div>
+
             <div class="drawer-section">
                 <h4>File Actions</h4>
                 <button class="menu-item" id="exportFlmmlBtn">FlMML出力</button>
@@ -445,7 +475,7 @@
         const Config = {
             GRID_W: 16,
             GRID_H: 16,
-            TOTAL_COLS: 1024, // Legacy互換のため拡張 (512 L8 -> 1024 L16)
+            TOTAL_COLS: 1024, 
             PITCHES: ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'],
             OCTAVES: 8,
             BASE_OCTAVE: 0,
@@ -456,8 +486,10 @@
                 NOTE: 'rgba(51, 154, 240, 0.9)',
                 NOTE_SELECTED: 'rgba(255, 107, 107, 0.95)',
                 NOTE_TEMP: 'rgba(51, 154, 240, 0.5)',
+                NOTE_GHOST: 'rgba(180, 180, 180, 0.25)',
                 NOTE_BORDER: '#1864ab',
                 NOTE_BORDER_SELECTED: '#c92a2a',
+                NOTE_BORDER_GHOST: 'rgba(150, 150, 150, 0.3)',
                 PLAYBACK: '#fa5252'
             }
         };
@@ -469,14 +501,12 @@
             confirmCallback: null,
 
             init() {
-                // Modals
                 document.getElementById('modalCancelBtn').onclick = () => this.hideModal();
                 document.getElementById('modalConfirmBtn').onclick = () => {
                     if(this.confirmCallback) this.confirmCallback();
                     this.hideModal();
                 };
 
-                // Drawers
                 document.getElementById('openMenuBtn').onclick = () => this.toggleDrawer('menuDrawer', true);
                 document.getElementById('closeMenuBtn').onclick = () => this.toggleDrawer('menuDrawer', false);
                 document.getElementById('overlay').onclick = (e) => {
@@ -485,11 +515,9 @@
                     }
                 };
 
-                // Bottom Sheet
                 document.getElementById('closeSheetBtn').onclick = () => this.toggleSheet(false);
                 document.getElementById('closeSheetHandle').onclick = () => this.toggleSheet(false);
 
-                // Note Delete
                 document.getElementById('btnDeleteNote').onclick = () => {
                     if(State.selectedNote) {
                         const track = State.getCurrentTrack();
@@ -504,12 +532,19 @@
                     }
                 };
 
-                // Tabs
                 document.querySelectorAll('.tab-link').forEach(btn => {
                     btn.addEventListener('click', (e) => {
                         this.switchSheetTab(e.target.dataset.target);
                     });
                 });
+
+                document.getElementById('toggleGhostNotes').onchange = (e) => {
+                    State.showGhostNotes = e.target.checked;
+                    View.refresh();
+                };
+                document.getElementById('toggleAutoScroll').onchange = (e) => {
+                    State.autoScroll = e.target.checked;
+                };
             },
 
             switchSheetTab(targetId) {
@@ -589,6 +624,9 @@
             isResizingTimeline: false, 
             isTwoFingerScroll: false, 
             
+            showGhostNotes: true,
+            autoScroll: true,
+
             dragStartPos: { x: 0, y: 0 },
             scrollStartPos: { x: 0, y: 0 }, 
             scrollStartScroll: { x: 0, y: 0 },
@@ -760,10 +798,24 @@
                 const steps = (now - State.startTime) * (tempo / 60) * 4;
                 State.playbackPosition = Math.floor(steps);
                 
+                // --- Auto Scroll Logic ---
+                const visibleCols = Math.floor((View.canvas.width - Config.KEY_WIDTH) / Config.GRID_W);
+                let needsRefresh = false;
+                if (State.autoScroll) {
+                    if (State.playbackPosition >= State.viewportStartCol + visibleCols) {
+                        State.viewportStartCol = State.playbackPosition;
+                        needsRefresh = true;
+                    } else if (State.playbackPosition < State.viewportStartCol) {
+                        State.viewportStartCol = Math.max(0, State.playbackPosition);
+                        needsRefresh = true;
+                    }
+                }
+
                 if (this.flmml.getTotalMSec() > 0 && this.flmml.getNowMSec() >= this.flmml.getTotalMSec()) {
                     setTimeout(() => this.stop(true), 100);
                 } else {
                     View.updatePlaybackIndicators();
+                    if (needsRefresh) View.refresh();
                     requestAnimationFrame(() => this.loop());
                 }
             },
@@ -929,13 +981,32 @@
                 const { ctx, canvas } = this;
                 const kw = Config.KEY_WIDTH;
                 const scrollX = State.viewportStartCol * Config.GRID_W;
-                const currentTrack = State.getCurrentTrack();
-                const sortedNotes = [...currentTrack.notes].sort((a, b) => a.x - b.x);
                 
                 ctx.save();
                 ctx.beginPath();
                 ctx.rect(kw, 0, canvas.width - kw, canvas.height);
                 ctx.clip();
+
+                // --- Draw Ghost Notes (other tracks) ---
+                if (State.showGhostNotes) {
+                    State.tracks.forEach((track, tIdx) => {
+                        if (tIdx === State.currentTrackIndex) return;
+                        track.notes.forEach(note => {
+                            const x = kw + (note.x * Config.GRID_W) - scrollX;
+                            const w = note.length * Config.GRID_W;
+                            if (x + w < kw || x > canvas.width) return;
+                            ctx.fillStyle = Config.COLORS.NOTE_GHOST;
+                            ctx.fillRect(x + 1, note.y + 1, w - 2, Config.GRID_H - 2);
+                            ctx.strokeStyle = Config.COLORS.NOTE_BORDER_GHOST;
+                            ctx.lineWidth = 1;
+                            ctx.strokeRect(x + 0.5, note.y + 0.5, w - 1, Config.GRID_H - 1);
+                        });
+                    });
+                }
+
+                // --- Draw Current Track Notes ---
+                const currentTrack = State.getCurrentTrack();
+                const sortedNotes = [...currentTrack.notes].sort((a, b) => a.x - b.x);
 
                 sortedNotes.forEach((note, index) => {
                     const x = kw + (note.x * Config.GRID_W) - scrollX;
@@ -1132,7 +1203,6 @@
                 const bar = document.getElementById('playbackBarArea');
                 const resizer = document.getElementById('timelineResizer');
                 
-                // --- Global Events ---
                 document.addEventListener('touchmove', e => {
                     if (State.isDraggingSeek || State.isDraggingViewport || State.isResizingTimeline || State.interactionMode === 'PAN') {
                         e.preventDefault();
@@ -1144,7 +1214,6 @@
                     this.handleGlobalUp(this.touchToMouse(e));
                 });
 
-                // --- Canvas Events ---
                 cvs.addEventListener('touchstart', e => {
                     if (e.touches.length === 2) {
                         State.isTwoFingerScroll = true;
@@ -1194,7 +1263,6 @@
                 window.addEventListener('mousemove', e => this.handleGlobalMove(e));
                 window.addEventListener('mouseup', e => this.handleGlobalUp(e));
 
-                // --- Overview Events ---
                 const handleTouch = (handler, e) => {
                     e.preventDefault();
                     handler(this.touchToMouse(e));
@@ -1246,7 +1314,6 @@
             },
 
             handleCanvasDown(e) {
-                // 中央クリックまたはShiftクリックで横移動(PAN)
                 if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
                     State.interactionMode = 'PAN';
                     State.dragStartPos = { x: e.clientX, y: e.clientY };
@@ -1258,7 +1325,6 @@
                 const track = State.getCurrentTrack();
                 if (pos.col < 0) return; 
 
-                // 右クリックで削除
                 if (e.button === 2) {
                     const noteIdx = track.notes.findIndex(n => n.y === pos.y && pos.col >= n.x && pos.col < n.x + n.length);
                     if (noteIdx !== -1) {
@@ -1305,7 +1371,6 @@
                 const pxPerStep = fullW / Config.TOTAL_COLS;
                 const visibleCols = Math.ceil((View.canvas.width - Config.KEY_WIDTH) / Config.GRID_W);
 
-                // トラック領域をクリックしたら即座に移動
                 const clickedTrackY = y - 24; 
                 const trackIdx = Math.floor(clickedTrackY / 40);
                 if (trackIdx >= 0 && trackIdx < State.tracks.length) {
@@ -1492,25 +1557,16 @@
                 reader.onload = (evt) => {
                     try {
                         let data = JSON.parse(evt.target.result);
-                        
-                        // --- 互換性レイヤー (Legacy v1 への対応) ---
                         if (!data.version) {
-                            console.log("Legacy format detected. Converting...");
-                            
-                            // BPM設定
                             if (data.tempo) {
                                 document.getElementById('tempoInput').value = data.tempo;
                                 document.getElementById('valBPM').textContent = data.tempo;
                             }
-                            
-                            // マスターボリューム
                             if (data.volume) {
                                 document.getElementById('masterVolume').value = data.volume;
                                 document.getElementById('valMaster').textContent = Math.round(data.volume * 100) + '%';
                                 Audio.setMasterVolume(parseFloat(data.volume));
                             }
-
-                            // トラックとノートの変換
                             data.tracks = data.tracks.map(t => {
                                 const newSettings = {
                                     waveform: t.settings.waveform ?? 3,
@@ -1521,31 +1577,24 @@
                                     detune: t.settings.detune ?? 0,
                                     volume: t.settings.trackVolume ?? t.settings.volume ?? 100
                                 };
-
                                 const newNotes = t.notes.map(n => {
-                                    // 旧: xはpixel, L8単位 -> 新: xはグリッド, L16単位
                                     const oldXGrid = n.x / 16;
                                     const oldPitchIdx = 11 - (n.y / 16);
                                     const octave = n.octave;
-                                    
-                                    // 新しい座標系での y 計算
                                     const octIndex = octave - Config.BASE_OCTAVE;
                                     const octaveRows = ((Config.OCTAVES - 1) - octIndex) * 12;
                                     const pitchRows = 11 - oldPitchIdx;
                                     const newY = (octaveRows + pitchRows) * Config.GRID_H;
-
                                     return {
-                                        x: oldXGrid * 2, // 8分 -> 16分
+                                        x: oldXGrid * 2, 
                                         y: newY,
-                                        length: (n.length ?? 1) * 2, // 8分 -> 16分
+                                        length: (n.length ?? 1) * 2, 
                                         octave: octave
                                     };
                                 }).filter(n => n.x < Config.TOTAL_COLS);
-
                                 return { settings: newSettings, notes: newNotes };
                             });
                         }
-                        // --- 互換性レイヤー終了 ---
 
                         if (data.tracks) {
                             State.tracks = data.tracks;
