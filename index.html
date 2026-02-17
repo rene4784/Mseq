@@ -123,6 +123,7 @@
             cursor: ns-resize; z-index: 30;
             display: flex; align-items: center; justify-content: center;
             color: #adb5bd; font-size: 12px;
+            touch-action: none;
         }
 
         #playbackBarArea {
@@ -131,13 +132,14 @@
             border-bottom: 1px solid var(--border-color);
             cursor: pointer; margin-left: var(--label-width); z-index: 20;
             backdrop-filter: blur(2px);
+            touch-action: none;
         }
 
         #overviewContainer {
             flex-grow: 1; overflow-y: auto; overflow-x: hidden;
             position: relative; padding-top: 24px;
             -webkit-overflow-scrolling: touch;
-            touch-action: none; 
+            touch-action: pan-y; 
         }
 
         .overview-track {
@@ -151,9 +153,15 @@
             border-right: 1px solid var(--border-color);
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             font-size: 10px; font-weight: 600; color: #555; position: relative; gap: 2px; z-index: 5;
+            cursor: pointer;
         }
         
-        .overview-track-content { flex-grow: 1; position: relative; }
+        .overview-track-content { 
+            flex-grow: 1; 
+            position: relative;
+            /* スワイプ操作が親コンテナに伝わるようにするが、canvas自体は描画のみ */
+            pointer-events: none; 
+        }
 
         /* --- Footer --- */
         .footer-controls {
@@ -192,7 +200,9 @@
         .viewport-indicator {
             position: absolute; border: 2px solid var(--viewport-border);
             background-color: var(--viewport-bg); z-index: 10;
-            box-sizing: border-box; pointer-events: auto !important; cursor: grab;
+            box-sizing: border-box; 
+            pointer-events: auto !important; 
+            cursor: grab;
         }
         .viewport-indicator:active { cursor: grabbing; }
 
@@ -639,6 +649,7 @@
             tempNote: null,
             interactionMode: 'NONE', 
             isDraggingViewport: false, 
+            isDraggingViewportHandle: false,
             isDraggingSeek: false,
             isResizingTimeline: false, 
             isTwoFingerScroll: false, 
@@ -647,6 +658,7 @@
             autoScroll: true,
 
             dragStartPos: { x: 0, y: 0 },
+            dragStartOffset: 0, // For viewport handle
             scrollStartPos: { x: 0, y: 0 }, 
             scrollStartScroll: { x: 0, y: 0 },
             
@@ -660,6 +672,10 @@
             noteInteractionStart: { x: 0, y: 0 },
             isNoteMoved: false,
             
+            // Overview Touch States
+            isOverviewTapped: false,
+            overviewTouchStart: { x: 0, y: 0, scrollT: 0 },
+
             defaultSettings: {
                 waveform: 3,
                 attack: 0, decay: 60, sustain: 30, release: 1,
@@ -1077,53 +1093,85 @@
                 this.drawNotes();
             },
 
-            renderOverview() {
+            // Full rebuild of overview
+            renderOverview(forceRebuild = false) {
                 const container = this.overviewContainer;
-                container.innerHTML = '';
-                if(container.clientWidth === 0) return;
-                
-                const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH, 100);
-                const pxPerStep = fullW / Config.TOTAL_COLS;
-                
-                State.tracks.forEach((track, idx) => {
-                    const row = document.createElement('div');
-                    row.className = `overview-track ${idx === State.currentTrackIndex ? 'active' : ''}`;
-                    row.dataset.index = idx;
+                const tracksMatch = container.children.length - 1 === State.tracks.length;
+
+                if (!tracksMatch || forceRebuild) {
+                    container.innerHTML = '';
+                    if(container.clientWidth === 0) return;
+
+                    const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH, 100);
+                    const pxPerStep = fullW / Config.TOTAL_COLS;
                     
-                    const label = document.createElement('div');
-                    label.className = 'overview-track-label';
-                    label.innerHTML = `<div>Trk ${idx + 1}</div>`;
-                    
-                    // Buttonless Track Label (Select by Tap)
-                    label.onclick = (e) => { 
-                        State.currentTrackIndex = idx; 
-                        View.refresh(); 
-                    };
-                    
-                    const content = document.createElement('div');
-                    content.className = 'overview-track-content';
-                    const miniCanvas = document.createElement('canvas');
-                    miniCanvas.width = fullW; miniCanvas.height = 40;
-                    const mCtx = miniCanvas.getContext('2d');
-                    
-                    mCtx.fillStyle = idx === State.currentTrackIndex ? Config.COLORS.NOTE : '#dee2e6';
-                    track.notes.forEach(note => {
-                        mCtx.fillRect(note.x * pxPerStep, (note.y / this.canvas.height) * 40, Math.max(1, note.length * pxPerStep), 3);
+                    State.tracks.forEach((track, idx) => {
+                        const row = document.createElement('div');
+                        row.className = `overview-track ${idx === State.currentTrackIndex ? 'active' : ''}`;
+                        row.dataset.index = idx;
+                        
+                        const label = document.createElement('div');
+                        label.className = 'overview-track-label';
+                        label.innerHTML = `<div>Trk ${idx + 1}</div>`;
+                        
+                        label.onclick = (e) => { 
+                            State.currentTrackIndex = idx; 
+                            View.refresh(); 
+                        };
+                        
+                        const content = document.createElement('div');
+                        content.className = 'overview-track-content';
+                        const miniCanvas = document.createElement('canvas');
+                        miniCanvas.width = fullW; miniCanvas.height = 40;
+                        const mCtx = miniCanvas.getContext('2d');
+                        
+                        mCtx.fillStyle = idx === State.currentTrackIndex ? Config.COLORS.NOTE : '#dee2e6';
+                        track.notes.forEach(note => {
+                            mCtx.fillRect(note.x * pxPerStep, (note.y / this.canvas.height) * 40, Math.max(1, note.length * pxPerStep), 3);
+                        });
+                        content.appendChild(miniCanvas);
+                        row.appendChild(label); row.appendChild(content);
+                        container.appendChild(row);
                     });
-                    content.appendChild(miniCanvas);
-                    row.appendChild(label); row.appendChild(content);
-                    container.appendChild(row);
-                });
+
+                    const indicator = document.createElement('div');
+                    indicator.className = 'viewport-indicator';
+                    container.appendChild(indicator);
+                }
                 
-                const indicator = document.createElement('div');
-                indicator.className = 'viewport-indicator';
-                const visibleCols = Math.ceil((this.canvas.width - Config.KEY_WIDTH) / Config.GRID_W);
-                const iWidth = (visibleCols / Config.TOTAL_COLS) * fullW;
-                const iLeft = Config.LABEL_WIDTH + ((State.viewportStartCol / Config.TOTAL_COLS) * fullW);
-                const iTop = (State.currentTrackIndex * 40) + 24; 
-                indicator.style.left = `${iLeft}px`; indicator.style.top = `${iTop}px`;
-                indicator.style.width = `${Math.max(2, iWidth)}px`; indicator.style.height = `40px`;
-                container.appendChild(indicator);
+                this.updateOverviewViewport();
+            },
+
+            // Lightweight update for overview (Indicator & Active track only)
+            updateOverviewViewport() {
+                const container = this.overviewContainer;
+                if (!container || container.clientWidth === 0) return;
+
+                const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH, 100);
+
+                // Update Active Track
+                Array.from(container.children).forEach(child => {
+                     if (child.classList.contains('overview-track')) {
+                         const idx = parseInt(child.dataset.index);
+                         if (idx === State.currentTrackIndex) child.classList.add('active');
+                         else child.classList.remove('active');
+                     }
+                });
+
+                // Update Indicator
+                let indicator = container.querySelector('.viewport-indicator');
+                if (indicator) {
+                    const visibleCols = Math.ceil((this.canvas.width - Config.KEY_WIDTH) / Config.GRID_W);
+                    const iWidth = (visibleCols / Config.TOTAL_COLS) * fullW;
+                    const iLeft = Config.LABEL_WIDTH + ((State.viewportStartCol / Config.TOTAL_COLS) * fullW);
+                    const iTop = (State.currentTrackIndex * 40) + 24; 
+                    
+                    indicator.style.left = `${iLeft}px`; 
+                    indicator.style.top = `${iTop}px`;
+                    indicator.style.width = `${Math.max(2, iWidth)}px`; 
+                    indicator.style.height = `40px`;
+                }
+                
                 this.updatePlaybackIndicators();
             },
 
@@ -1219,7 +1267,7 @@
                 
                 // --- Global Events ---
                 document.addEventListener('touchmove', e => {
-                    if (State.isDraggingSeek || State.isDraggingViewport || State.isResizingTimeline || State.interactionMode === 'PAN') {
+                    if (State.isDraggingSeek || State.isDraggingViewport || State.isDraggingViewportHandle || State.isResizingTimeline || State.interactionMode === 'PAN') {
                         e.preventDefault();
                         this.handleGlobalMove(this.touchToMouse(e));
                     }
@@ -1232,15 +1280,24 @@
                 // --- Canvas Events ---
                 cvs.addEventListener('touchstart', e => {
                     if (e.touches.length >= 2) {
+                        if (State.interactionMode === 'DRAW') {
+                            State.tempNote = null; 
+                        } else if ((State.interactionMode === 'MOVE' || State.interactionMode === 'RESIZE') && State.selectedNote && State.dragStartNoteState) {
+                             Object.assign(State.selectedNote, State.dragStartNoteState);
+                        }
+                        
+                        State.interactionMode = 'NONE';
+                        State.selectedNote = null; 
+
                         State.isTwoFingerScroll = true;
                         State.scrollStartPos = { x: (e.touches[0].clientX + e.touches[1].clientX)/2, y: (e.touches[0].clientY + e.touches[1].clientY)/2 };
                         const area = document.getElementById('canvasArea');
                         State.scrollStartScroll = { x: State.viewportStartCol, y: area.scrollTop };
                         e.preventDefault(); 
+                        View.refresh();
                     } 
                     else if (e.touches.length === 1) {
                         State.isTwoFingerScroll = false;
-                        // e.preventDefault(); // Don't preventDefault here, let handleCanvasDown decide or let browser scroll if needed
                         this.handleCanvasDown(this.touchToMouse(e));
                     }
                 }, {passive: false});
@@ -1279,34 +1336,65 @@
                 window.addEventListener('mousemove', e => this.handleGlobalMove(e));
                 window.addEventListener('mouseup', e => this.handleGlobalUp(e));
 
-                // --- Overview Events ---
-                const handleTouch = (handler, e) => {
-                    e.preventDefault();
-                    handler(this.touchToMouse(e));
-                };
-
-                // Overview: Touch Start
+                // --- Overview Events (Touch) ---
+                // Touch Start
                 ovr.addEventListener('touchstart', e => {
-                    // Force single touch logic to avoid interference
                     if(e.touches.length > 1) return;
-
                     const t = e.touches[0];
                     const rect = ovr.getBoundingClientRect();
                     const x = t.clientX - rect.left;
-                    
-                    // Left side (Labels): Allow native vertical scroll
-                    if (x <= Config.LABEL_WIDTH) {
-                        return; 
-                    }
-                    
-                    // Right side (Tracks): Act as Seek Bar / Viewport Control
+                    const y = t.clientY - rect.top + ovr.scrollTop; 
+
+                    // Label Area (Left): Allow native scroll
+                    if (x <= Config.LABEL_WIDTH) return;
+
+                    // Track Area (Right): Always allow Drag Mode anywhere
                     e.preventDefault(); 
-                    this.handleOverviewDown(this.touchToMouse(e));
+                    
+                    // Immediate Jump first
+                    this.handleOverviewJump(x, y);
+
+                    // Then setup drag
+                    const fullW = Math.max(ovr.clientWidth - Config.LABEL_WIDTH, 100);
+                    const newILeft = Config.LABEL_WIDTH + ((State.viewportStartCol / Config.TOTAL_COLS) * fullW);
+
+                    State.isDraggingViewportHandle = true;
+                    State.dragStartOffset = x - newILeft;
+
                 }, {passive: false});
+
+                // Touch Move
+                ovr.addEventListener('touchmove', e => {
+                    if (State.isDraggingViewportHandle) {
+                        e.preventDefault();
+                        const t = e.touches[0];
+                        this.handleOverviewDrag(t.clientX);
+                    }
+                }, {passive: false});
+
+                // Touch End
+                ovr.addEventListener('touchend', e => {
+                    State.isDraggingViewportHandle = false;
+                });
                 
-                ovr.addEventListener('mousedown', e => this.handleOverviewDown(e));
-                
-                // No need for separate touchmove here as global touchmove handles dragging state
+                // --- Overview Events (Mouse) ---
+                ovr.addEventListener('mousedown', e => {
+                    const rect = ovr.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    if (x <= Config.LABEL_WIDTH) return;
+                    
+                    const y = e.clientY - rect.top + ovr.scrollTop;
+                    
+                    // Mouse click jumps immediately
+                    this.handleOverviewJump(x, y);
+                    
+                    // Then start dragging from there
+                    const fullW = Math.max(ovr.clientWidth - Config.LABEL_WIDTH, 100);
+                    const newILeft = Config.LABEL_WIDTH + ((State.viewportStartCol / Config.TOTAL_COLS) * fullW);
+                    
+                    State.isDraggingViewportHandle = true;
+                    State.dragStartOffset = x - newILeft;
+                });
                 
                 bar.addEventListener('mousedown', e => this.handleBarDown(e));
                 bar.addEventListener('touchstart', e => handleTouch(this.handleBarDown.bind(this), e), {passive: false});
@@ -1390,36 +1478,52 @@
                 View.refresh();
             },
 
-            handleOverviewDown(e) {
+            // Common Logic for jumping to a position in Overview
+            handleOverviewJump(x, y) {
                 const container = document.getElementById('overviewContainer');
-                const rect = container.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top + container.scrollTop;
                 
-                if (x <= Config.LABEL_WIDTH) return; 
-
-                const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH, 100);
-                const pxPerStep = fullW / Config.TOTAL_COLS;
-                const visibleCols = Math.ceil((View.canvas.width - Config.KEY_WIDTH) / Config.GRID_W);
-
+                // Track selection logic
                 const clickedTrackY = y - 24; 
                 const trackIdx = Math.floor(clickedTrackY / 40);
-                
                 if (trackIdx >= 0 && trackIdx < State.tracks.length) {
                     State.currentTrackIndex = trackIdx;
                 }
 
-                // Center viewport on click
+                // Viewport jump logic
+                const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH, 100);
+                const pxPerStep = fullW / Config.TOTAL_COLS;
+                const visibleCols = Math.ceil((View.canvas.width - Config.KEY_WIDTH) / Config.GRID_W);
+                
                 const clickCol = (x - Config.LABEL_WIDTH) / pxPerStep;
                 let newViewport = Math.floor(clickCol - (visibleCols / 2));
                 
-                State.viewportStartCol = Math.max(0, Math.min(Config.TOTAL_COLS - visibleCols, newViewport));
+                // Clamp
+                newViewport = Math.max(0, Math.min(Config.TOTAL_COLS - visibleCols, newViewport));
+                State.viewportStartCol = newViewport;
                 
-                State.isDraggingViewport = true;
-                // No need for dragStartPos X relative calculation, we use absolute mapping in handleGlobalMove
-                View.refresh();
+                // IMPORTANT: Use lighter update method
+                View.render();
+                View.updateOverviewViewport();
             },
             
+            // Logic for dragging the indicator
+            handleOverviewDrag(clientX) {
+                const container = document.getElementById('overviewContainer');
+                const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH, 100);
+                const rect = container.getBoundingClientRect();
+                const x = clientX - rect.left;
+                
+                const newLeft = x - Config.LABEL_WIDTH - State.dragStartOffset;
+                const ratio = newLeft / fullW;
+                
+                const visibleCols = Math.ceil((View.canvas.width - Config.KEY_WIDTH) / Config.GRID_W);
+                State.viewportStartCol = Math.max(0, Math.min(Config.TOTAL_COLS - visibleCols, Math.floor(ratio * Config.TOTAL_COLS)));
+                
+                // IMPORTANT: Use lighter update method
+                View.render();
+                View.updateOverviewViewport();
+            },
+
             handleBarDown(e) {
                 State.isDraggingSeek = true;
                 this.updateSeek(e);
@@ -1452,21 +1556,9 @@
                 }
                 if (State.isDraggingSeek) { this.updateSeek(e); return; }
                 
-                if (State.isDraggingViewport) {
-                    const container = document.getElementById('overviewContainer');
-                    const rect = container.getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    
-                    // Absolute positioning mapping (Seek-bar like behavior)
-                    const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH, 100);
-                    const pxPerStep = fullW / Config.TOTAL_COLS;
-                    const visibleCols = Math.ceil((View.canvas.width - Config.KEY_WIDTH) / Config.GRID_W);
-                    
-                    const clickCol = (x - Config.LABEL_WIDTH) / pxPerStep;
-                    let newViewport = Math.floor(clickCol - (visibleCols / 2));
-                    State.viewportStartCol = Math.max(0, Math.min(Config.TOTAL_COLS - visibleCols, newViewport));
-                    
-                    View.refresh();
+                // Overview Drag (Mouse & Touch)
+                if (State.isDraggingViewportHandle) {
+                    this.handleOverviewDrag(e.clientX);
                     return;
                 }
                 
@@ -1509,6 +1601,7 @@
             handleGlobalUp(e) {
                 State.isDraggingSeek = false;
                 State.isDraggingViewport = false;
+                State.isDraggingViewportHandle = false;
                 State.isResizingTimeline = false;
                 State.isTwoFingerScroll = false;
                 
