@@ -445,7 +445,7 @@
         const Config = {
             GRID_W: 16,
             GRID_H: 16,
-            TOTAL_COLS: 512, 
+            TOTAL_COLS: 1024, // Legacy互換のため拡張 (512 L8 -> 1024 L16)
             PITCHES: ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'],
             OCTAVES: 8,
             BASE_OCTAVE: 0,
@@ -1491,13 +1491,74 @@
                 const reader = new FileReader();
                 reader.onload = (evt) => {
                     try {
-                        const data = JSON.parse(evt.target.result);
+                        let data = JSON.parse(evt.target.result);
+                        
+                        // --- 互換性レイヤー (Legacy v1 への対応) ---
+                        if (!data.version) {
+                            console.log("Legacy format detected. Converting...");
+                            
+                            // BPM設定
+                            if (data.tempo) {
+                                document.getElementById('tempoInput').value = data.tempo;
+                                document.getElementById('valBPM').textContent = data.tempo;
+                            }
+                            
+                            // マスターボリューム
+                            if (data.volume) {
+                                document.getElementById('masterVolume').value = data.volume;
+                                document.getElementById('valMaster').textContent = Math.round(data.volume * 100) + '%';
+                                Audio.setMasterVolume(parseFloat(data.volume));
+                            }
+
+                            // トラックとノートの変換
+                            data.tracks = data.tracks.map(t => {
+                                const newSettings = {
+                                    waveform: t.settings.waveform ?? 3,
+                                    attack: t.settings.attack ?? 0,
+                                    decay: t.settings.decay ?? 60,
+                                    sustain: t.settings.sustain ?? 30,
+                                    release: t.settings.release ?? 1,
+                                    detune: t.settings.detune ?? 0,
+                                    volume: t.settings.trackVolume ?? t.settings.volume ?? 100
+                                };
+
+                                const newNotes = t.notes.map(n => {
+                                    // 旧: xはpixel, L8単位 -> 新: xはグリッド, L16単位
+                                    const oldXGrid = n.x / 16;
+                                    const oldPitchIdx = 11 - (n.y / 16);
+                                    const octave = n.octave;
+                                    
+                                    // 新しい座標系での y 計算
+                                    const octIndex = octave - Config.BASE_OCTAVE;
+                                    const octaveRows = ((Config.OCTAVES - 1) - octIndex) * 12;
+                                    const pitchRows = 11 - oldPitchIdx;
+                                    const newY = (octaveRows + pitchRows) * Config.GRID_H;
+
+                                    return {
+                                        x: oldXGrid * 2, // 8分 -> 16分
+                                        y: newY,
+                                        length: (n.length ?? 1) * 2, // 8分 -> 16分
+                                        octave: octave
+                                    };
+                                }).filter(n => n.x < Config.TOTAL_COLS);
+
+                                return { settings: newSettings, notes: newNotes };
+                            });
+                        }
+                        // --- 互換性レイヤー終了 ---
+
                         if (data.tracks) {
                             State.tracks = data.tracks;
-                            if (data.bpm) { document.getElementById('tempoInput').value = data.bpm; document.getElementById('valBPM').textContent = data.bpm; }
+                            if (data.bpm) {
+                                document.getElementById('tempoInput').value = data.bpm;
+                                document.getElementById('valBPM').textContent = data.bpm;
+                            }
                             State.currentTrackIndex = 0; State.selectedNote = null; History.init(); View.refresh();
                         }
-                    } catch(err) { alert("Load Error: " + err); }
+                    } catch(err) { 
+                        console.error(err);
+                        alert("読み込みエラー: " + err.message); 
+                    }
                 };
                 reader.readAsText(file); e.target.value = ''; 
             }
