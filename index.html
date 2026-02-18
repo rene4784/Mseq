@@ -10,7 +10,8 @@
         :root {
             --header-height: 48px;
             --footer-height: 60px;
-            --label-width: 70px;
+            --label-width: 40px;  /* 70px -> 40px */
+            --action-width: 40px; /* New Column */
             
             /* Colors */
             --bg-color: #f8f9fa;
@@ -127,7 +128,7 @@
         }
 
         #playbackBarArea {
-            position: absolute; top: 0; left: 0; right: 0; height: 24px;
+            position: absolute; top: 0; left: 0; right: var(--action-width); height: 24px;
             background-color: rgba(241, 243, 245, 0.9);
             border-bottom: 1px solid var(--border-color);
             cursor: pointer; margin-left: var(--label-width); z-index: 20;
@@ -147,6 +148,7 @@
             border-bottom: 1px solid var(--border-color); display: flex;
         }
         .overview-track.active { background: #e7f5ff; }
+        .overview-track.dragging { opacity: 0.3; background: #ddd; }
 
         .overview-track-label {
             width: var(--label-width); flex-shrink: 0; background: #f8f9fa;
@@ -159,9 +161,18 @@
         .overview-track-content { 
             flex-grow: 1; 
             position: relative;
-            /* スワイプ操作が親コンテナに伝わるようにするが、canvas自体は描画のみ */
             pointer-events: none; 
         }
+
+        .overview-track-action {
+            width: var(--action-width); flex-shrink: 0; background: #fdfdfd;
+            border-left: 1px solid var(--border-color);
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 5; color: #aaa;
+            touch-action: none; /* Important for custom drag handling */
+        }
+        .overview-track-action:active { background: #f1f3f5; color: #333; }
+        .overview-track-action svg { width: 18px; height: 18px; fill: currentColor; }
 
         .overview-add-btn {
             height: 40px;
@@ -171,6 +182,33 @@
             border-bottom: 1px solid var(--border-color);
         }
         .overview-add-btn:active { background: #f1f3f5; }
+
+        /* Drop Indicator */
+        .drop-indicator {
+            position: absolute; left: 0; right: 0; height: 3px;
+            background-color: var(--accent-color);
+            z-index: 50; display: none; pointer-events: none;
+            box-shadow: 0 0 4px rgba(34, 139, 230, 0.6);
+        }
+        /* Circles at ends of drop indicator */
+        .drop-indicator::before, .drop-indicator::after {
+            content: ''; position: absolute; top: -3px; width: 9px; height: 9px;
+            background-color: var(--accent-color); border-radius: 50%;
+        }
+        .drop-indicator::before { left: -4px; }
+        .drop-indicator::after { right: -4px; }
+
+        /* Drag Avatar */
+        .drag-avatar {
+            position: fixed; z-index: 999; 
+            background: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            border: 1px solid var(--accent-color);
+            pointer-events: none;
+            display: flex; align-items: center;
+            opacity: 0.9;
+            transform: scale(1.02);
+        }
 
         /* --- Footer --- */
         .footer-controls {
@@ -483,7 +521,7 @@
     <!-- Footer Controls -->
     <div class="footer-controls">
         <div class="control-group">
-            <button id="editTrackBtn" style="height:32px;">トラック管理</button>
+            <!-- Track Management Button Removed -->
         </div>
         
         <div class="control-group">
@@ -510,7 +548,8 @@
             GRID_W: 16,
             GRID_H: 16,
             TOTAL_COLS: 1024, 
-            LABEL_WIDTH: 70, // Track label width
+            LABEL_WIDTH: 40, // 70 -> 40
+            ACTION_WIDTH: 40, // New Column
             PITCHES: ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'],
             OCTAVES: 8,
             BASE_OCTAVE: 0,
@@ -534,6 +573,7 @@
          */
         const UI = {
             confirmCallback: null,
+            dragAvatar: null,
 
             init() {
                 document.getElementById('modalCancelBtn').onclick = () => this.hideModal();
@@ -592,6 +632,33 @@
                 document.getElementById('toggleAutoScroll').onchange = (e) => {
                     State.autoScroll = e.target.checked;
                 };
+            },
+
+            createDragAvatar(trackIdx, rect) {
+                if(this.dragAvatar) this.removeDragAvatar();
+                const avatar = document.createElement('div');
+                avatar.className = 'drag-avatar';
+                avatar.style.width = rect.width + 'px';
+                avatar.style.height = rect.height + 'px';
+                avatar.style.top = rect.top + 'px';
+                avatar.style.left = rect.left + 'px';
+                avatar.innerHTML = `<div style="padding:0 10px; font-weight:bold; font-size:12px;">Track ${trackIdx + 1}</div>`;
+                document.body.appendChild(avatar);
+                this.dragAvatar = avatar;
+            },
+
+            updateDragAvatar(x, y) {
+                if(this.dragAvatar) {
+                    this.dragAvatar.style.top = (y - 20) + 'px'; // Centered vertically
+                    this.dragAvatar.style.left = x + 'px';
+                }
+            },
+
+            removeDragAvatar() {
+                if(this.dragAvatar) {
+                    this.dragAvatar.remove();
+                    this.dragAvatar = null;
+                }
             },
 
             switchSheetTab(targetId) {
@@ -673,6 +740,11 @@
             isResizingTimeline: false, 
             isTwoFingerScroll: false, 
             
+            // Track Reordering
+            isTrackDragging: false,
+            preparingTrackDrag: false,
+            dragTrackIdx: -1,
+
             showGhostNotes: true,
             autoScroll: true,
 
@@ -686,7 +758,7 @@
             
             isPlaying: false,
             playbackPosition: 0,
-            playbackStartStep: 0, // Remember where playback started
+            playbackStartStep: 0, 
             startTime: 0,
             
             noteInteractionStart: { x: 0, y: 0 },
@@ -743,6 +815,23 @@
                 this.tracks.splice(idx, 1);
                 this.tracks.splice(newIdx, 0, track);
                 this.currentTrackIndex = newIdx;
+                
+                History.push();
+                View.refresh();
+            },
+            
+            reorderTrack(fromIdx, toIdx) {
+                if (fromIdx === toIdx) return;
+                if (fromIdx < 0 || fromIdx >= this.tracks.length) return;
+                if (toIdx < 0 || toIdx >= this.tracks.length) return;
+                
+                const track = this.tracks[fromIdx];
+                this.tracks.splice(fromIdx, 1);
+                this.tracks.splice(toIdx, 0, track);
+                
+                if (this.currentTrackIndex === fromIdx) this.currentTrackIndex = toIdx;
+                else if (fromIdx < this.currentTrackIndex && toIdx >= this.currentTrackIndex) this.currentTrackIndex--;
+                else if (fromIdx > this.currentTrackIndex && toIdx <= this.currentTrackIndex) this.currentTrackIndex++;
                 
                 History.push();
                 View.refresh();
@@ -981,6 +1070,15 @@
                 this.updateSheetUI();
                 this.updateEnvelope();
             },
+            
+            // NEW: Lightweight selection update without DOM rebuild
+            selectTrack(idx) {
+                State.currentTrackIndex = idx;
+                this.updateOverviewViewport(); // Updates CSS classes
+                this.render(); // Redraw canvas (notes/grid)
+                this.updateSheetUI();
+                this.updateEnvelope();
+            },
 
             drawGrid() {
                 const { ctx, canvas } = this;
@@ -1139,28 +1237,27 @@
                 const container = this.overviewContainer;
                 const savedScroll = container.scrollTop;
                 
-                // Add button is now part of the content, so children length will be tracks.length + 2 (indicator + addBtn)
-                // Simplify: Always rebuild for now to ensure correct order
                 container.innerHTML = '';
                 if(container.clientWidth === 0) return;
 
-                const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH, 100);
+                const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH - Config.ACTION_WIDTH, 100);
                 const pxPerStep = fullW / Config.TOTAL_COLS;
                 
                 State.tracks.forEach((track, idx) => {
                     const row = document.createElement('div');
                     row.className = `overview-track ${idx === State.currentTrackIndex ? 'active' : ''}`;
+                    if(State.isTrackDragging && State.dragTrackIdx === idx) row.classList.add('dragging');
                     row.dataset.index = idx;
                     
+                    // 1. Label
                     const label = document.createElement('div');
                     label.className = 'overview-track-label';
-                    label.innerHTML = `<div>Trk ${idx + 1}</div>`;
-                    
+                    label.innerHTML = `<div>Trk</div><div>${idx + 1}</div>`;
                     label.onclick = (e) => { 
-                        State.currentTrackIndex = idx; 
-                        View.refresh(); 
+                        View.selectTrack(idx);
                     };
                     
+                    // 2. Content (Canvas)
                     const content = document.createElement('div');
                     content.className = 'overview-track-content';
                     const miniCanvas = document.createElement('canvas');
@@ -1172,7 +1269,20 @@
                         mCtx.fillRect(note.x * pxPerStep, (note.y / this.canvas.height) * 40, Math.max(1, note.length * pxPerStep), 3);
                     });
                     content.appendChild(miniCanvas);
-                    row.appendChild(label); row.appendChild(content);
+                    
+                    // 3. Action Column
+                    const action = document.createElement('div');
+                    action.className = 'overview-track-action';
+                    // Hamburger/Grip icon
+                    action.innerHTML = '<svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>';
+                    
+                    // Bind Events for Action
+                    action.onmousedown = (e) => Input.handleActionDown(e, idx);
+                    action.ontouchstart = (e) => Input.handleActionDown(e, idx);
+
+                    row.appendChild(label); 
+                    row.appendChild(content);
+                    row.appendChild(action);
                     container.appendChild(row);
                 });
 
@@ -1183,9 +1293,16 @@
                 addRow.onclick = () => { State.addTrack(); View.refresh(); };
                 container.appendChild(addRow);
 
+                // Indicator
                 const indicator = document.createElement('div');
                 indicator.className = 'viewport-indicator';
                 container.appendChild(indicator);
+                
+                // Drop Indicator
+                const dropInd = document.createElement('div');
+                dropInd.id = 'dropIndicator';
+                dropInd.className = 'drop-indicator';
+                container.appendChild(dropInd);
                 
                 container.scrollTop = savedScroll;
                 this.updateOverviewViewport();
@@ -1196,7 +1313,7 @@
                 const container = this.overviewContainer;
                 if (!container || container.clientWidth === 0) return;
 
-                const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH, 100);
+                const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH - Config.ACTION_WIDTH, 100);
 
                 // Update Active Track
                 Array.from(container.children).forEach(child => {
@@ -1228,7 +1345,7 @@
                 document.querySelectorAll('.overview-playback-indicator').forEach(el => el.remove());
                 const pos = State.playbackPosition;
                 const container = this.overviewContainer;
-                const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH, 100);
+                const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH - Config.ACTION_WIDTH, 100);
                 const pxPerStep = fullW / Config.TOTAL_COLS;
                 const left = Config.LABEL_WIDTH + (pos * pxPerStep);
                 
@@ -1247,6 +1364,29 @@
                 canvasBar.style.display = 'none';
             },
             
+            // --- Helper methods for Drag Feedback without full refresh ---
+            setTrackDraggingState(idx, isDragging) {
+                const row = document.querySelector(`.overview-track[data-index="${idx}"]`);
+                if (row) {
+                    if (isDragging) row.classList.add('dragging');
+                    else row.classList.remove('dragging');
+                }
+            },
+            
+            showDropIndicator(y) {
+                const el = document.getElementById('dropIndicator');
+                if(el) {
+                    el.style.top = y + 'px';
+                    el.style.display = 'block';
+                }
+            },
+            
+            hideDropIndicator() {
+                const el = document.getElementById('dropIndicator');
+                if(el) el.style.display = 'none';
+            },
+            // ------------------------------------------------------------
+
             updateSheetUI() {
                 const t = State.getCurrentTrack().settings;
                 document.getElementById('sheetTrackName').textContent = `Track ${State.currentTrackIndex + 1}`;
@@ -1308,6 +1448,8 @@
          * Input
          */
         const Input = {
+            dragStartClientPos: { x: 0, y: 0 },
+
             init() {
                 const cvs = document.getElementById('musicCanvas');
                 const ovr = document.getElementById('overviewContainer');
@@ -1321,16 +1463,55 @@
                 };
                 
                 // --- Global Events ---
-                document.addEventListener('touchmove', e => {
-                    if (State.isDraggingSeek || State.isDraggingViewport || State.isDraggingViewportHandle || State.isResizingTimeline || State.interactionMode === 'PAN') {
-                        e.preventDefault();
-                        this.handleGlobalMove(this.touchToMouse(e));
+                const handleMove = (e) => {
+                    const m = this.touchToMouse(e);
+                    
+                    // Track Drag: Detect drag start from handle
+                    if (State.preparingTrackDrag) {
+                        const dx = m.clientX - this.dragStartClientPos.x;
+                        const dy = m.clientY - this.dragStartClientPos.y;
+                        // Threshold 5px to detect intentional drag
+                        if (dx * dx + dy * dy > 25) { 
+                            State.preparingTrackDrag = false;
+                            this.startTrackDrag(State.dragTrackIdx, m);
+                        }
                     }
-                }, { passive: false });
 
-                document.addEventListener('touchend', e => {
-                    this.handleGlobalUp(this.touchToMouse(e));
-                });
+                    if (State.isTrackDragging) {
+                        if(e.cancelable) e.preventDefault();
+                        this.handleTrackDragMove(m);
+                        return;
+                    }
+                    if (State.isDraggingSeek || State.isDraggingViewport || State.isDraggingViewportHandle || State.isResizingTimeline || State.interactionMode !== 'NONE') {
+                        if(e.cancelable) e.preventDefault();
+                        this.handleGlobalMove(m);
+                    }
+                };
+
+                const handleUp = (e) => {
+                    const m = this.touchToMouse(e);
+                    
+                    if (State.isTrackDragging) {
+                        this.handleTrackDragEnd(m);
+                        return;
+                    }
+                    
+                    // Track Handle Tap (Not dragged)
+                    if (State.preparingTrackDrag) {
+                        State.preparingTrackDrag = false;
+                        State.dragTrackIdx = -1;
+                        // Tap behavior: Open Menu
+                        UI.toggleSheet(true, 'sheet-sound');
+                    }
+                    
+                    this.handleGlobalUp(m);
+                };
+
+                document.addEventListener('touchmove', handleMove, { passive: false });
+                document.addEventListener('mousemove', handleMove);
+                
+                document.addEventListener('touchend', handleUp);
+                document.addEventListener('mouseup', handleUp);
 
                 // --- Canvas Events ---
                 cvs.addEventListener('touchstart', e => {
@@ -1372,10 +1553,6 @@
                         State.viewportStartCol = Math.max(0, Math.min(Config.TOTAL_COLS - 1, State.scrollStartScroll.x - colDiff));
                         View.refresh();
                     } 
-                    else if (e.touches.length === 1) {
-                        e.preventDefault();
-                        this.handleGlobalMove(this.touchToMouse(e));
-                    }
                 }, {passive: false});
 
                 cvs.addEventListener('wheel', e => {
@@ -1388,13 +1565,16 @@
                 }, { passive: false });
 
                 cvs.addEventListener('mousedown', e => this.handleCanvasDown(e));
-                window.addEventListener('mousemove', e => this.handleGlobalMove(e));
-                window.addEventListener('mouseup', e => this.handleGlobalUp(e));
-
+                
                 // --- Overview Events (Touch) ---
                 // Touch Start
                 ovr.addEventListener('touchstart', e => {
                     if(e.touches.length > 1) return;
+                    
+                    // Ignore if target is the action button (handled separately)
+                    if (e.target.closest('.overview-track-action')) return;
+                    if (e.target.closest('.overview-add-btn')) return;
+
                     const t = e.touches[0];
                     const rect = ovr.getBoundingClientRect();
                     const x = t.clientX - rect.left;
@@ -1403,9 +1583,6 @@
                     // Label Area (Left): Allow native scroll
                     if (x <= Config.LABEL_WIDTH) return;
 
-                    // Ignore Add Button
-                    if (e.target.closest('.overview-add-btn')) return;
-
                     // Track Area (Right): Always allow Drag Mode anywhere
                     e.preventDefault(); 
                     
@@ -1413,7 +1590,7 @@
                     this.handleOverviewJump(x, y);
 
                     // Then setup drag
-                    const fullW = Math.max(ovr.clientWidth - Config.LABEL_WIDTH, 100);
+                    const fullW = Math.max(ovr.clientWidth - Config.LABEL_WIDTH - Config.ACTION_WIDTH, 100);
                     const newILeft = Config.LABEL_WIDTH + ((State.viewportStartCol / Config.TOTAL_COLS) * fullW);
 
                     State.isDraggingViewportHandle = true;
@@ -1421,27 +1598,16 @@
 
                 }, {passive: false});
 
-                // Touch Move
-                ovr.addEventListener('touchmove', e => {
-                    if (State.isDraggingViewportHandle) {
-                        e.preventDefault();
-                        const t = e.touches[0];
-                        this.handleOverviewDrag(t.clientX);
-                    }
-                }, {passive: false});
-
-                // Touch End
-                ovr.addEventListener('touchend', e => {
-                    State.isDraggingViewportHandle = false;
-                });
+                // Touch Move / End are handled by global listeners
                 
                 // --- Overview Events (Mouse) ---
                 ovr.addEventListener('mousedown', e => {
+                    if (e.target.closest('.overview-track-action')) return;
+                    if (e.target.closest('.overview-add-btn')) return;
+
                     const rect = ovr.getBoundingClientRect();
                     const x = e.clientX - rect.left;
                     if (x <= Config.LABEL_WIDTH) return;
-
-                    if (e.target.closest('.overview-add-btn')) return;
                     
                     const y = e.clientY - rect.top + ovr.scrollTop;
                     
@@ -1449,7 +1615,7 @@
                     this.handleOverviewJump(x, y);
                     
                     // Then start dragging from there
-                    const fullW = Math.max(ovr.clientWidth - Config.LABEL_WIDTH, 100);
+                    const fullW = Math.max(ovr.clientWidth - Config.LABEL_WIDTH - Config.ACTION_WIDTH, 100);
                     const newILeft = Config.LABEL_WIDTH + ((State.viewportStartCol / Config.TOTAL_COLS) * fullW);
                     
                     State.isDraggingViewportHandle = true;
@@ -1468,6 +1634,96 @@
                 }, {passive: false});
 
                 this.bindControls();
+            },
+            
+            // --- Action Column Handling ---
+            handleActionDown(e, idx) {
+                // Prevent scrolling when touching the handle
+                if(e.cancelable) e.preventDefault();
+                e.stopPropagation(); // Stop bubbling to overview
+                
+                const m = this.touchToMouse(e);
+                this.dragStartClientPos = { x: m.clientX, y: m.clientY };
+                
+                State.dragTrackIdx = idx;
+                State.preparingTrackDrag = true;
+                
+                // Use lightweight update to avoid destroying the DOM element that fired this event
+                View.selectTrack(idx);
+            },
+
+            startTrackDrag(idx, pos) {
+                State.isTrackDragging = true;
+                State.dragTrackIdx = idx;
+                
+                // Visual feedback
+                const row = document.querySelector(`.overview-track[data-index="${idx}"]`);
+                if(row) {
+                    const rect = row.getBoundingClientRect();
+                    UI.createDragAvatar(idx, rect);
+                    // Initial pos update
+                    UI.updateDragAvatar(pos.clientX, pos.clientY);
+                }
+                
+                View.setTrackDraggingState(idx, true);
+            },
+
+            handleTrackDragMove(e) {
+                if(!State.isTrackDragging) return;
+                const clientY = e.clientY;
+                const clientX = e.clientX;
+                UI.updateDragAvatar(clientX, clientY);
+                
+                // Show drop indicator
+                const ovr = document.getElementById('overviewContainer');
+                const rect = ovr.getBoundingClientRect();
+                const relativeY = clientY - rect.top + ovr.scrollTop;
+                const contentY = relativeY - 24; 
+                let targetIdx = Math.round(contentY / 40);
+                targetIdx = Math.max(0, Math.min(State.tracks.length, targetIdx));
+                
+                // Position line
+                const lineY = 24 + (targetIdx * 40);
+                View.showDropIndicator(lineY);
+            },
+
+            handleTrackDragEnd(e) {
+                if(!State.isTrackDragging) return;
+                
+                UI.removeDragAvatar();
+                View.hideDropIndicator();
+                View.setTrackDraggingState(State.dragTrackIdx, false); // Restore style
+
+                // Calculate drop target
+                const ovr = document.getElementById('overviewContainer');
+                const rect = ovr.getBoundingClientRect();
+                const relativeY = e.clientY - rect.top + ovr.scrollTop;
+                // Subtract padding
+                const contentY = relativeY - 24; 
+                
+                // Determine insertion index (0 to tracks.length)
+                // Using round gives nearest boundary
+                let targetIdx = Math.round(contentY / 40);
+                targetIdx = Math.max(0, Math.min(State.tracks.length, targetIdx));
+                
+                const currentIdx = State.dragTrackIdx;
+                
+                // If dropped at same position or adjacent (no change)
+                if (targetIdx !== currentIdx && targetIdx !== currentIdx + 1) {
+                    // Adjust index because removing item shifts indices
+                    let insertAt = targetIdx;
+                    if (targetIdx > currentIdx) insertAt -= 1;
+                    State.reorderTrack(currentIdx, insertAt);
+                } else {
+                    View.refresh(); // Just restore look
+                }
+                
+                // Delay clearing the flag so click handler knows we were dragging
+                setTimeout(() => {
+                    State.isTrackDragging = false;
+                    State.dragTrackIdx = -1;
+                    View.refresh(); // Ensure UI is fully synced
+                }, 0);
             },
             
             touchToMouse(e) {
@@ -1546,11 +1802,12 @@
                 const clickedTrackY = y - 24; 
                 const trackIdx = Math.floor(clickedTrackY / 40);
                 if (trackIdx >= 0 && trackIdx < State.tracks.length) {
-                    State.currentTrackIndex = trackIdx;
+                    // Use lightweight update
+                    View.selectTrack(trackIdx);
                 }
 
                 // Viewport jump logic
-                const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH, 100);
+                const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH - Config.ACTION_WIDTH, 100);
                 const pxPerStep = fullW / Config.TOTAL_COLS;
                 const visibleCols = Math.ceil((View.canvas.width - Config.KEY_WIDTH) / Config.GRID_W);
                 
@@ -1569,7 +1826,7 @@
             // Logic for dragging the indicator
             handleOverviewDrag(clientX) {
                 const container = document.getElementById('overviewContainer');
-                const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH, 100);
+                const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH - Config.ACTION_WIDTH, 100);
                 const rect = container.getBoundingClientRect();
                 const x = clientX - rect.left;
                 
@@ -1692,9 +1949,6 @@
 
             bindControls() {
                 document.getElementById('musicCanvas').addEventListener('contextmenu', e => e.preventDefault());
-                
-                // document.getElementById('addTrackBtn').onclick = ... (Removed from footer)
-                document.getElementById('editTrackBtn').onclick = () => { UI.toggleSheet(true, 'sheet-sound'); };
                 
                 // Track Moving
                 document.getElementById('sheetMoveTrackUpBtn').onclick = () => State.moveTrack(-1);
