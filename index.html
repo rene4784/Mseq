@@ -483,14 +483,18 @@
     <!-- Footer Controls -->
     <div class="footer-controls">
         <div class="control-group">
-            <!-- Add Track Button Removed from here -->
             <button id="editTrackBtn" style="height:32px;">トラック管理</button>
         </div>
         
-        <button class="primary circle-btn" id="playBtn" style="width:48px; height:48px;">
-            <svg class="play-icon" id="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-            <svg class="play-icon" id="icon-pause" viewBox="0 0 24 24" style="display:none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-        </button>
+        <div class="control-group">
+            <button class="primary circle-btn" id="playBtn" style="width:48px; height:48px;">
+                <svg class="play-icon" id="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                <svg class="play-icon" id="icon-pause" viewBox="0 0 24 24" style="display:none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+            </button>
+            <button class="circle-btn" id="stopBtn" style="width:40px; height:40px;">
+                <svg class="play-icon" viewBox="0 0 24 24" style="fill:#555; width:16px; height:16px;"><path d="M6 6h12v12H6z"/></svg>
+            </button>
+        </div>
         
         <div class="control-group">
             <button class="circle-btn" id="undoBtn">↶</button>
@@ -682,6 +686,7 @@
             
             isPlaying: false,
             playbackPosition: 0,
+            playbackStartStep: 0, // Remember where playback started
             startTime: 0,
             
             noteInteractionStart: { x: 0, y: 0 },
@@ -835,6 +840,9 @@
                 try {
                     this.stop(false);
                     State.isPlaying = true;
+                    // Remember where we started to return later
+                    State.playbackStartStep = startStep;
+                    
                     const mml = this.generateMML(startStep);
                     const tempo = parseInt(document.getElementById('tempoInput').value);
                     const secondsPerStep = (60 / tempo) / 4;
@@ -845,10 +853,13 @@
                     View.updatePlayButton();
                 } catch (e) { console.error(e); this.stop(true); }
             },
+            // resetPos: true = Reset to start position (Stop button), false = Stay at current (Pause)
             stop(resetPos = true) {
                 State.isPlaying = false;
                 if(this.flmml) this.flmml.stop();
-                if (resetPos) State.playbackPosition = 0;
+                if (resetPos) {
+                    State.playbackPosition = State.playbackStartStep;
+                }
                 View.updatePlaybackIndicators();
                 View.updatePlayButton();
             },
@@ -875,8 +886,9 @@
                     }
                 }
 
+                // Check if playback finished
                 if (this.flmml.getTotalMSec() > 0 && this.flmml.getNowMSec() >= this.flmml.getTotalMSec()) {
-                    setTimeout(() => this.stop(true), 100);
+                    setTimeout(() => this.stop(true), 100); // Return to start position
                 } else {
                     View.updatePlaybackIndicators();
                     if (needsRefresh) View.refresh();
@@ -1580,12 +1592,14 @@
             updateSeek(e) {
                 const bar = document.getElementById('playbackBarArea');
                 const rect = bar.getBoundingClientRect();
-                let x = e.clientX - rect.left;
-                const fullW = rect.width - Config.LABEL_WIDTH; 
-                x = Math.max(0, Math.min(x, rect.width));
-                let relX = x - Config.LABEL_WIDTH;
-                if (relX < 0) relX = 0; if (relX > fullW) relX = fullW;
-                const pct = relX / fullW;
+                // Since the bar is absolute positioned with left margin, rect.left gives the actual screen coordinate where it starts
+                let x = e.clientX - rect.left; 
+                
+                // Map to 0 - width
+                const fullW = rect.width;
+                x = Math.max(0, Math.min(x, fullW));
+                
+                const pct = x / fullW;
                 const step = Math.floor(pct * Config.TOTAL_COLS);
                 State.playbackPosition = step;
                 if (State.isPlaying) Audio.play(step);
@@ -1726,6 +1740,7 @@
                 document.getElementById('undoBtn').onclick = () => History.undo();
                 document.getElementById('redoBtn').onclick = () => History.redo();
                 document.getElementById('playBtn').onclick = () => { if (State.isPlaying) Audio.stop(false); else Audio.play(State.playbackPosition); };
+                document.getElementById('stopBtn').onclick = () => { Audio.stop(true); };
             }
         };
 
