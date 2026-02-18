@@ -163,6 +163,15 @@
             pointer-events: none; 
         }
 
+        .overview-add-btn {
+            height: 40px;
+            display: flex; justify-content: center; align-items: center;
+            color: var(--accent-color); font-weight: bold; font-size: 12px;
+            background: #fdfdfd; cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .overview-add-btn:active { background: #f1f3f5; }
+
         /* --- Footer --- */
         .footer-controls {
             background: var(--panel-bg);
@@ -433,6 +442,12 @@
             <div id="sheet-track" style="display:none;">
                 <div style="padding: 10px;">
                     <p style="font-size:13px; color:#666; margin-bottom:20px;">現在のトラックに対する操作です。</p>
+                    
+                    <div style="display:flex; gap:10px; margin-bottom:15px;">
+                        <button class="menu-item" id="sheetMoveTrackUpBtn" style="flex:1; margin:0; text-align:center;">↑ 上へ移動</button>
+                        <button class="menu-item" id="sheetMoveTrackDownBtn" style="flex:1; margin:0; text-align:center;">↓ 下へ移動</button>
+                    </div>
+
                     <button class="menu-item danger" id="sheetClearTrackBtn" style="margin-bottom:15px;">トラックのノートを全てクリア</button>
                     <button class="menu-item danger" id="sheetDeleteTrackBtn">このトラックを削除</button>
                 </div>
@@ -468,8 +483,8 @@
     <!-- Footer Controls -->
     <div class="footer-controls">
         <div class="control-group">
-            <button id="addTrackBtn" style="height:32px;">+ Trk</button>
-            <button id="editTrackBtn" style="height:32px;">Edit</button>
+            <!-- Add Track Button Removed from here -->
+            <button id="editTrackBtn" style="height:32px;">トラック管理</button>
         </div>
         
         <button class="primary circle-btn" id="playBtn" style="width:48px; height:48px;">
@@ -593,31 +608,8 @@
             },
 
             showConfirm(title, message, onConfirm) {
-                document.querySelector('#confirmModal h3').textContent = title;
                 document.getElementById('modalMessage').textContent = message;
-                
-                const cancelBtn = document.getElementById('modalCancelBtn');
-                const confirmBtn = document.getElementById('modalConfirmBtn');
-                cancelBtn.style.display = 'inline-flex';
-                confirmBtn.textContent = '実行';
-                confirmBtn.className = 'danger';
-
                 this.confirmCallback = onConfirm;
-                document.getElementById('overlay').classList.add('active');
-                document.getElementById('confirmModal').classList.add('active');
-            },
-
-            showAlert(title, message) {
-                document.querySelector('#confirmModal h3').textContent = title;
-                document.getElementById('modalMessage').textContent = message;
-                
-                const cancelBtn = document.getElementById('modalCancelBtn');
-                const confirmBtn = document.getElementById('modalConfirmBtn');
-                cancelBtn.style.display = 'none';
-                confirmBtn.textContent = 'OK';
-                confirmBtn.className = 'primary';
-
-                this.confirmCallback = null;
                 document.getElementById('overlay').classList.add('active');
                 document.getElementById('confirmModal').classList.add('active');
             },
@@ -737,8 +729,22 @@
                 History.push();
             },
 
+            moveTrack(offset) {
+                const idx = this.currentTrackIndex;
+                const newIdx = idx + offset;
+                if (newIdx < 0 || newIdx >= this.tracks.length) return;
+                
+                const track = this.tracks[idx];
+                this.tracks.splice(idx, 1);
+                this.tracks.splice(newIdx, 0, track);
+                this.currentTrackIndex = newIdx;
+                
+                History.push();
+                View.refresh();
+            },
+
             deleteTrack(index) {
-                if (this.tracks.length <= 1) return UI.showAlert("確認", "最後のトラックは削除できません");
+                if (this.tracks.length <= 1) return alert("最後のトラックは削除できません");
                 UI.showConfirm('確認', `トラック ${index + 1} を削除しますか？`, () => {
                     this.tracks.splice(index, 1);
                     if (this.currentTrackIndex >= this.tracks.length) this.currentTrackIndex = this.tracks.length - 1;
@@ -1119,49 +1125,57 @@
             // Full rebuild of overview
             renderOverview(forceRebuild = false) {
                 const container = this.overviewContainer;
-                const tracksMatch = container.children.length - 1 === State.tracks.length;
-
-                if (!tracksMatch || forceRebuild) {
-                    container.innerHTML = '';
-                    if(container.clientWidth === 0) return;
-
-                    const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH, 100);
-                    const pxPerStep = fullW / Config.TOTAL_COLS;
-                    
-                    State.tracks.forEach((track, idx) => {
-                        const row = document.createElement('div');
-                        row.className = `overview-track ${idx === State.currentTrackIndex ? 'active' : ''}`;
-                        row.dataset.index = idx;
-                        
-                        const label = document.createElement('div');
-                        label.className = 'overview-track-label';
-                        label.innerHTML = `<div>Trk ${idx + 1}</div>`;
-                        
-                        label.onclick = (e) => { 
-                            State.currentTrackIndex = idx; 
-                            View.refresh(); 
-                        };
-                        
-                        const content = document.createElement('div');
-                        content.className = 'overview-track-content';
-                        const miniCanvas = document.createElement('canvas');
-                        miniCanvas.width = fullW; miniCanvas.height = 40;
-                        const mCtx = miniCanvas.getContext('2d');
-                        
-                        mCtx.fillStyle = idx === State.currentTrackIndex ? Config.COLORS.NOTE : '#dee2e6';
-                        track.notes.forEach(note => {
-                            mCtx.fillRect(note.x * pxPerStep, (note.y / this.canvas.height) * 40, Math.max(1, note.length * pxPerStep), 3);
-                        });
-                        content.appendChild(miniCanvas);
-                        row.appendChild(label); row.appendChild(content);
-                        container.appendChild(row);
-                    });
-
-                    const indicator = document.createElement('div');
-                    indicator.className = 'viewport-indicator';
-                    container.appendChild(indicator);
-                }
+                const savedScroll = container.scrollTop;
                 
+                // Add button is now part of the content, so children length will be tracks.length + 2 (indicator + addBtn)
+                // Simplify: Always rebuild for now to ensure correct order
+                container.innerHTML = '';
+                if(container.clientWidth === 0) return;
+
+                const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH, 100);
+                const pxPerStep = fullW / Config.TOTAL_COLS;
+                
+                State.tracks.forEach((track, idx) => {
+                    const row = document.createElement('div');
+                    row.className = `overview-track ${idx === State.currentTrackIndex ? 'active' : ''}`;
+                    row.dataset.index = idx;
+                    
+                    const label = document.createElement('div');
+                    label.className = 'overview-track-label';
+                    label.innerHTML = `<div>Trk ${idx + 1}</div>`;
+                    
+                    label.onclick = (e) => { 
+                        State.currentTrackIndex = idx; 
+                        View.refresh(); 
+                    };
+                    
+                    const content = document.createElement('div');
+                    content.className = 'overview-track-content';
+                    const miniCanvas = document.createElement('canvas');
+                    miniCanvas.width = fullW; miniCanvas.height = 40;
+                    const mCtx = miniCanvas.getContext('2d');
+                    
+                    mCtx.fillStyle = idx === State.currentTrackIndex ? Config.COLORS.NOTE : '#dee2e6';
+                    track.notes.forEach(note => {
+                        mCtx.fillRect(note.x * pxPerStep, (note.y / this.canvas.height) * 40, Math.max(1, note.length * pxPerStep), 3);
+                    });
+                    content.appendChild(miniCanvas);
+                    row.appendChild(label); row.appendChild(content);
+                    container.appendChild(row);
+                });
+
+                // Add Track Button Row
+                const addRow = document.createElement('div');
+                addRow.className = 'overview-add-btn';
+                addRow.innerHTML = '+ トラックを追加';
+                addRow.onclick = () => { State.addTrack(); View.refresh(); };
+                container.appendChild(addRow);
+
+                const indicator = document.createElement('div');
+                indicator.className = 'viewport-indicator';
+                container.appendChild(indicator);
+                
+                container.scrollTop = savedScroll;
                 this.updateOverviewViewport();
             },
 
@@ -1377,6 +1391,9 @@
                     // Label Area (Left): Allow native scroll
                     if (x <= Config.LABEL_WIDTH) return;
 
+                    // Ignore Add Button
+                    if (e.target.closest('.overview-add-btn')) return;
+
                     // Track Area (Right): Always allow Drag Mode anywhere
                     e.preventDefault(); 
                     
@@ -1411,6 +1428,8 @@
                     const rect = ovr.getBoundingClientRect();
                     const x = e.clientX - rect.left;
                     if (x <= Config.LABEL_WIDTH) return;
+
+                    if (e.target.closest('.overview-add-btn')) return;
                     
                     const y = e.clientY - rect.top + ovr.scrollTop;
                     
@@ -1660,8 +1679,12 @@
             bindControls() {
                 document.getElementById('musicCanvas').addEventListener('contextmenu', e => e.preventDefault());
                 
-                document.getElementById('addTrackBtn').onclick = () => { State.addTrack(); View.refresh(); };
+                // document.getElementById('addTrackBtn').onclick = ... (Removed from footer)
                 document.getElementById('editTrackBtn').onclick = () => { UI.toggleSheet(true, 'sheet-sound'); };
+                
+                // Track Moving
+                document.getElementById('sheetMoveTrackUpBtn').onclick = () => State.moveTrack(-1);
+                document.getElementById('sheetMoveTrackDownBtn').onclick = () => State.moveTrack(1);
 
                 const bindRange = (id, prop) => {
                     document.getElementById(id).addEventListener('input', e => {
