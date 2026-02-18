@@ -1625,6 +1625,7 @@
                     } 
                     else if (e.touches.length === 1) {
                         State.isTwoFingerScroll = false;
+                        if (e.cancelable) e.preventDefault();
                         this.handleCanvasDown(this.touchToMouse(e));
                     }
                 }, {passive: false});
