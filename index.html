@@ -136,6 +136,15 @@
             touch-action: none;
         }
 
+        #timeDisplay {
+            position: absolute; top: 0; right: 0; width: var(--action-width); height: 24px;
+            background-color: #fdfdfd; border-bottom: 1px solid var(--border-color);
+            border-left: 1px solid var(--border-color);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 10px; color: #555; font-family: monospace;
+            z-index: 20;
+        }
+
         #overviewContainer {
             flex-grow: 1; overflow-y: auto; overflow-x: hidden;
             position: relative; padding-top: 24px;
@@ -373,6 +382,13 @@
                         <span class="slider-round"></span>
                     </label>
                 </div>
+                <div class="toggle-row">
+                    <span>ノート操作音</span>
+                    <label class="switch">
+                        <input type="checkbox" id="togglePreviewSound" checked>
+                        <span class="slider-round"></span>
+                    </label>
+                </div>
             </div>
 
             <div class="drawer-section">
@@ -511,6 +527,7 @@
         <div id="timelineArea" class="timeline-area">
             <div id="timelineResizer" title="ドラッグしてサイズ変更">≡</div>
             <div id="playbackBarArea"></div>
+            <div id="timeDisplay">00:00</div>
             <div id="timelinePlaybackIndicator" class="playback-indicator" style="display: none; z-index: 25;"></div>
             <div id="overviewContainer">
                 <!-- Tracks will be generated here -->
@@ -632,6 +649,9 @@
                 document.getElementById('toggleAutoScroll').onchange = (e) => {
                     State.autoScroll = e.target.checked;
                 };
+                document.getElementById('togglePreviewSound').onchange = (e) => {
+                    State.enablePreview = e.target.checked;
+                };
             },
 
             createDragAvatar(trackIdx, rect) {
@@ -747,6 +767,11 @@
 
             showGhostNotes: true,
             autoScroll: true,
+            enablePreview: true, // Preview sound enabled by default
+
+            // Preview Sound State
+            lastPreviewRow: -1,
+            lastPreviewLength: -1,
 
             dragStartPos: { x: 0, y: 0 },
             dragStartOffset: 0, // For viewport handle
@@ -917,6 +942,8 @@
          */
         const Audio = {
             flmml: null,
+            ctx: null, // Web Audio Context for Preview
+
             init() {
                 this.flmml = new FlMML({
                     workerURL: 'https://unpkg.com/flmml-on-html5@2.0.3/dist/flmml-on-html5.worker.js',
@@ -924,6 +951,54 @@
                 });
                 this.setMasterVolume(0.7);
             },
+
+            // Web Audio API for interactive preview
+            previewNote(row) {
+                if (!State.enablePreview) return;
+                
+                // Initialize context on first user gesture
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+
+                const octaveFromTop = Math.floor(row / 12);
+                const octave = (Config.OCTAVES - 1 - octaveFromTop) + Config.BASE_OCTAVE;
+                const pitchIdx = 11 - (row % 12);
+                // Lowered 1 octave to match FlMML
+                const noteNum = octave * 12 + pitchIdx;
+                
+                // Frequency calculation (Equal Temperament)
+                const freq = 440 * Math.pow(2, (noteNum - 69) / 12);
+
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+
+                // Short decay envelope
+                const masterVol = parseFloat(document.getElementById('masterVolume').value) || 0.5;
+                const vol = masterVol * 0.2; // Reduce volume for preview
+                
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.15);
+                
+                // Cleanup
+                osc.onended = () => {
+                    osc.disconnect();
+                    gain.disconnect();
+                };
+            },
+
             play(startStep = 0) {
                 if (!State.tracks || State.tracks.length === 0) return;
                 try {
@@ -951,6 +1026,7 @@
                 }
                 View.updatePlaybackIndicators();
                 View.updatePlayButton();
+                View.updateTimeDisplay();
             },
             setMasterVolume(val) {
                 if (this.flmml) this.flmml.setMasterVolume(Math.floor(val * 127));
@@ -975,11 +1051,13 @@
                     }
                 }
 
+                View.updatePlaybackIndicators();
+                View.updateTimeDisplay();
+
                 // Check if playback finished
                 if (this.flmml.getTotalMSec() > 0 && this.flmml.getNowMSec() >= this.flmml.getTotalMSec()) {
                     setTimeout(() => this.stop(true), 100); // Return to start position
                 } else {
-                    View.updatePlaybackIndicators();
                     if (needsRefresh) View.refresh();
                     requestAnimationFrame(() => this.loop());
                 }
@@ -1362,6 +1440,19 @@
                     }
                 }
                 canvasBar.style.display = 'none';
+            },
+
+            updateTimeDisplay() {
+                const bpm = parseInt(document.getElementById('tempoInput').value);
+                const stepSec = (60 / bpm) / 4;
+                const totalSec = State.playbackPosition * stepSec;
+                
+                const m = Math.floor(totalSec / 60);
+                const s = Math.floor(totalSec % 60);
+                const text = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                
+                const el = document.getElementById('timeDisplay');
+                if(el) el.textContent = text;
             },
             
             // --- Helper methods for Drag Feedback without full refresh ---
@@ -1781,8 +1872,10 @@
                     State.dragStartNoteState = { ...clickedNote };
                     if (pos.col === clickedNote.x + clickedNote.length - 1) {
                         State.interactionMode = 'RESIZE';
+                        State.lastPreviewLength = clickedNote.length; // Init preview state
                     } else {
                         State.interactionMode = 'MOVE';
+                        State.lastPreviewRow = Math.floor(clickedNote.y / Config.GRID_H); // Init preview state
                     }
                 } else {
                     State.selectedNote = null;
@@ -1790,6 +1883,11 @@
                     prevNotes.sort((a, b) => b.x - a.x);
                     const newOctave = prevNotes[0] ? prevNotes[0].octave : 4;
                     State.tempNote = { x: pos.col, y: pos.y, length: 1, octave: newOctave };
+                    
+                    // Preview Sound on Draw Start
+                    const row = Math.floor(pos.y / Config.GRID_H);
+                    State.lastPreviewRow = row;
+                    Audio.previewNote(row);
                 }
                 View.refresh();
             },
@@ -1860,7 +1958,10 @@
                 const step = Math.floor(pct * Config.TOTAL_COLS);
                 State.playbackPosition = step;
                 if (State.isPlaying) Audio.play(step);
-                else View.updatePlaybackIndicators();
+                else {
+                    View.updatePlaybackIndicators();
+                    View.updateTimeDisplay();
+                }
             },
 
             handleGlobalMove(e) {
@@ -1899,7 +2000,15 @@
                 
                 if (State.interactionMode === 'DRAW' && State.tempNote) {
                     const newLen = Math.max(1, pos.col - State.tempNote.x + 1);
+                    // Do NOT update Y coordinate (keep pitch fixed during draw)
                     State.tempNote.length = newLen;
+                    
+                    // Preview on Length Change (Use fixed pitch)
+                    if (State.lastPreviewLength !== newLen) {
+                         const fixedRow = Math.floor(State.tempNote.y / Config.GRID_H);
+                         Audio.previewNote(fixedRow); 
+                         State.lastPreviewLength = newLen;
+                    }
                 }
                 else if (State.interactionMode === 'MOVE' && State.selectedNote) {
                     const dx = pos.col - State.dragStartPos.x;
@@ -1909,10 +2018,24 @@
                     State.selectedNote.y = Math.max(0, Math.min(newY, (12 * Config.OCTAVES * Config.GRID_H) - Config.GRID_H));
                     const row = Math.floor(State.selectedNote.y / Config.GRID_H);
                     State.selectedNote.octave = (Config.OCTAVES - 1 - Math.floor(row/12)) + Config.BASE_OCTAVE;
+                    
+                    // Preview on Move (Pitch Change)
+                    if (State.lastPreviewRow !== row) {
+                        Audio.previewNote(row);
+                        State.lastPreviewRow = row;
+                    }
                 }
                 else if (State.interactionMode === 'RESIZE' && State.selectedNote) {
                     const dx = pos.col - State.dragStartPos.x;
-                    State.selectedNote.length = Math.max(1, State.dragStartNoteState.length + dx);
+                    const newLen = Math.max(1, State.dragStartNoteState.length + dx);
+                    State.selectedNote.length = newLen;
+
+                    // Preview on Resize (Length Change)
+                    if (State.lastPreviewLength !== newLen) {
+                        const row = Math.floor(State.selectedNote.y / Config.GRID_H);
+                        Audio.previewNote(row);
+                        State.lastPreviewLength = newLen;
+                    }
                 }
                 View.render();
             },
