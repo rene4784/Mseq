@@ -10,8 +10,8 @@
         :root {
             --header-height: 48px;
             --footer-height: 60px;
-            --label-width: 40px;  /* 70px -> 40px */
-            --action-width: 40px; /* New Column */
+            --label-width: 40px;  
+            --action-width: 40px; 
             
             /* Colors */
             --bg-color: #f8f9fa;
@@ -178,7 +178,7 @@
             border-left: 1px solid var(--border-color);
             display: flex; align-items: center; justify-content: center;
             cursor: pointer; z-index: 5; color: #aaa;
-            touch-action: none; /* Important for custom drag handling */
+            touch-action: none; 
         }
         .overview-track-action:active { background: #f1f3f5; color: #333; }
         .overview-track-action svg { width: 18px; height: 18px; fill: currentColor; }
@@ -199,7 +199,6 @@
             z-index: 50; display: none; pointer-events: none;
             box-shadow: 0 0 4px rgba(34, 139, 230, 0.6);
         }
-        /* Circles at ends of drop indicator */
         .drop-indicator::before, .drop-indicator::after {
             content: ''; position: absolute; top: -3px; width: 9px; height: 9px;
             background-color: var(--accent-color); border-radius: 50%;
@@ -308,7 +307,7 @@
 
         input[type="range"] { width: 100%; margin: 6px 0; }
         .slider-row { display: flex; justify-content: space-between; font-size: 11px; color: #666; margin-bottom: 2px; }
-        select, input[type="number"] { width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px; }
+        select, input[type="number"], input[type="text"] { width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px; }
 
         .modal-box {
             position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9);
@@ -347,6 +346,59 @@
         <div class="modal-actions">
             <button id="modalCancelBtn">キャンセル</button>
             <button id="modalConfirmBtn" class="danger">実行</button>
+        </div>
+    </div>
+
+    <!-- Macro Preset Modal -->
+    <div id="macroModal" class="modal-box" style="width:500px; max-width:95vw; padding:20px;">
+        <h3 style="margin:0 0 5px 0; font-size:16px;">音色マクロ管理 (Presets)</h3>
+        <p style="font-size:11px; color:#666; margin-top:0; margin-bottom:15px;">登録したマクロはFlMMLソースの先頭に展開され、ノートごとの音色変更に使えます。</p>
+        <div style="display:flex; gap:15px; flex-direction:row;">
+            <div style="width:140px; display:flex; flex-direction:column; gap:5px; flex-shrink:0;">
+                <select id="macroList" size="10" style="width:100%; height:180px; border:1px solid #ced4da; border-radius:4px; padding:4px; font-size:12px;"></select>
+                <button id="addMacroBtn" style="width:100%; height:28px;">+ 新規追加</button>
+                <button id="delMacroBtn" class="danger" style="width:100%; height:28px;">削除</button>
+            </div>
+            <div style="flex:1; overflow-y:auto; padding-right:4px;" id="macroEditArea">
+                <div style="margin-bottom:10px;">
+                    <label style="font-size:11px; color:#666; display:block; margin-bottom:4px;">マクロ名 (英数_)</label>
+                    <input type="text" id="macroName" style="padding:6px; font-size:12px;" pattern="^[a-zA-Z0-9_]+$">
+                </div>
+                <div style="margin-bottom:10px;">
+                    <label style="font-size:11px; color:#666; display:block; margin-bottom:4px;">Waveform</label>
+                    <select id="macroWaveform" style="padding:6px; font-size:12px;">
+                        <option value="0">Sine (サイン波)</option>
+                        <option value="1">Saw (ノコギリ波)</option>
+                        <option value="2">Triangle (三角波)</option>
+                        <option value="3">Pulse (矩形波)</option>
+                        <option value="7">Noise (ノイズ)</option>
+                    </select>
+                </div>
+                <div class="sound-grid-top" style="margin-bottom:10px;">
+                    <div>
+                        <div class="slider-row"><span>Volume</span><span id="valMacroVolume">100</span></div>
+                        <input type="range" id="macroVolume" min="0" max="127">
+                        <div style="height:5px;"></div>
+                        <div class="slider-row"><span>Detune</span><span id="valMacroDetune">0</span></div>
+                        <input type="range" id="macroDetune" min="-50" max="50">
+                    </div>
+                    <div>
+                        <label style="font-size:11px; color:#666; display:block; margin-bottom:4px;">Preview</label>
+                        <svg id="macroEnvelopeSvg" width="100%" height="60" viewBox="0 0 100 100" preserveAspectRatio="none" style="background:#fcfcfc; border:1px solid #eee; border-radius:4px;">
+                            <path id="macroEnvPath" d="M0,100" fill="rgba(34, 139, 230, 0.2)" stroke="var(--accent-color)" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div class="sound-grid-adsr">
+                    <div class="adsr-item"><label>ATTACK <span id="valMacroAttack" class="adsr-val">0</span></label><input type="range" id="macroAttack" min="0" max="127"></div>
+                    <div class="adsr-item"><label>DECAY <span id="valMacroDecay" class="adsr-val">60</span></label><input type="range" id="macroDecay" min="0" max="127"></div>
+                    <div class="adsr-item"><label>SUSTAIN <span id="valMacroSustain" class="adsr-val">30</span></label><input type="range" id="macroSustain" min="0" max="127"></div>
+                    <div class="adsr-item"><label>RELEASE <span id="valMacroRelease" class="adsr-val">1</span></label><input type="range" id="macroRelease" min="0" max="127"></div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-actions" style="margin-top:15px;">
+            <button id="closeMacroModalBtn">完了</button>
         </div>
     </div>
 
@@ -389,6 +441,11 @@
                         <span class="slider-round"></span>
                     </label>
                 </div>
+            </div>
+
+            <div class="drawer-section">
+                <h4>Advanced</h4>
+                <button class="menu-item" id="openMacroBtn">音色マクロ管理 (Presets)</button>
             </div>
 
             <div class="drawer-section">
@@ -482,13 +539,19 @@
                             <label style="width:60px; font-size:13px;">Length:</label>
                             <input type="number" id="noteLength" min="1" max="64">
                         </div>
+                        <div style="display:flex; gap:10px; align-items:center; margin-bottom:15px;" id="noteMacroContainer">
+                            <label style="width:60px; font-size:13px;">Macro:</label>
+                            <select id="noteMacroSelect" style="flex:1;">
+                                <option value="">(現在の音色を維持)</option>
+                            </select>
+                        </div>
                         <div style="display:flex; justify-content: flex-end; margin-top: 10px;">
-                            <button id="btnDeleteNote" class="danger-fill" style="width:100%;">ノートを削除</button>
+                            <button id="btnDeleteNote" class="danger-fill" style="width:100%;">選択ノートを削除</button>
                         </div>
                     </div>
                 </div>
                 <div id="noNoteMsg" style="text-align:center; padding:40px 20px; color:#adb5bd; border: 2px dashed #eee; border-radius:8px; margin-top:10px;">
-                    ノートを選択していません
+                    単一のノートを選択していません
                 </div>
             </div>
 
@@ -523,6 +586,19 @@
                 <div id="canvasPlaybackBar" class="playback-indicator" style="display: none;"></div>
             </div>
         </div>
+        
+        <!-- Edit Tools (Visible in Select Mode on the Canvas) -->
+        <div id="editTools" style="position:absolute; top:8px; right:16px; z-index:40; display:none; gap:4px; background:rgba(255,255,255,0.9); padding:6px; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,0.15); backdrop-filter: blur(4px);">
+            <button id="btnCopy" class="circle-btn" style="width:36px; height:36px;" title="コピー(Ctrl+C)">
+                <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:currentColor;"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+            </button>
+            <button id="btnPaste" class="circle-btn" style="width:36px; height:36px;" title="ペースト(Ctrl+V)">
+                <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:currentColor;"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>
+            </button>
+            <button id="btnDeleteSel" class="circle-btn danger" style="width:36px; height:36px;" title="削除(Del)">
+                <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:currentColor;"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+            </button>
+        </div>
 
         <div id="timelineArea" class="timeline-area">
             <div id="timelineResizer" title="ドラッグしてサイズ変更">≡</div>
@@ -537,23 +613,40 @@
 
     <!-- Footer Controls -->
     <div class="footer-controls">
-        <div class="control-group">
-            <!-- Track Management Button Removed -->
+        <div class="control-group" style="position:relative;">
+            <!-- Tool Selector -->
+            <button class="circle-btn" id="toolBtn" style="width:40px; height:40px;" title="ツール選択">
+                <svg id="toolIconPen" viewBox="0 0 24 24" style="width:18px;height:18px;fill:currentColor;"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                <svg id="toolIconSelect" viewBox="0 0 24 24" style="width:18px;height:18px;fill:currentColor;display:none;"><path d="M7 2l12 11.2l-5.8.5l3.3 7.3l-2.25.9l-3.2-7.4l-4.4 4.7z"/></svg>
+            </button>
+            <div id="toolMenu" style="position:absolute; bottom:50px; left:0; background:white; border:1px solid #ced4da; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); display:none; flex-direction:column; padding:4px; z-index:100; min-width:100px;">
+                <button id="toolPenBtn" style="border:none; background:transparent; justify-content:flex-start; height:32px; padding:0 12px; font-size:14px; display:flex; align-items:center; gap:8px;">
+                    <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor;"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                    描画
+                </button>
+                <button id="toolSelectBtn" style="border:none; background:transparent; justify-content:flex-start; height:32px; padding:0 12px; font-size:14px; display:flex; align-items:center; gap:8px;">
+                    <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor;"><path d="M7 2l12 11.2l-5.8.5l3.3 7.3l-2.25.9l-3.2-7.4l-4.4 4.7z"/></svg>
+                    選択
+                </button>
+            </div>
         </div>
         
         <div class="control-group">
+            <button class="circle-btn" id="rewindBtn" style="width:40px; height:40px;" title="最初に戻る">
+                <svg class="play-icon" viewBox="0 0 24 24" style="fill:#555; width:16px; height:16px;"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+            </button>
             <button class="primary circle-btn" id="playBtn" style="width:48px; height:48px;">
                 <svg class="play-icon" id="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                 <svg class="play-icon" id="icon-pause" viewBox="0 0 24 24" style="display:none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
             </button>
-            <button class="circle-btn" id="stopBtn" style="width:40px; height:40px;">
+            <button class="circle-btn" id="stopBtn" style="width:40px; height:40px;" title="停止">
                 <svg class="play-icon" viewBox="0 0 24 24" style="fill:#555; width:16px; height:16px;"><path d="M6 6h12v12H6z"/></svg>
             </button>
         </div>
         
         <div class="control-group">
-            <button class="circle-btn" id="undoBtn">↶</button>
-            <button class="circle-btn" id="redoBtn">↷</button>
+            <button class="circle-btn" id="undoBtn" title="元に戻す (Ctrl+Z)">↶</button>
+            <button class="circle-btn" id="redoBtn" title="やり直し (Ctrl+Y / Ctrl+Shift+Z)">↷</button>
         </div>
     </div>
 
@@ -565,8 +658,8 @@
             GRID_W: 16,
             GRID_H: 16,
             TOTAL_COLS: 1024, 
-            LABEL_WIDTH: 40, // 70 -> 40
-            ACTION_WIDTH: 40, // New Column
+            LABEL_WIDTH: 40, 
+            ACTION_WIDTH: 40, 
             PITCHES: ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'],
             OCTAVES: 8,
             BASE_OCTAVE: 0,
@@ -586,172 +679,20 @@
         };
 
         /**
-         * Modal & UI Manager
-         */
-        const UI = {
-            confirmCallback: null,
-            dragAvatar: null,
-
-            init() {
-                document.getElementById('modalCancelBtn').onclick = () => this.hideModal();
-                document.getElementById('modalConfirmBtn').onclick = () => {
-                    if(this.confirmCallback) this.confirmCallback();
-                    this.hideModal();
-                };
-
-                document.getElementById('openMenuBtn').onclick = () => this.toggleDrawer('menuDrawer', true);
-                document.getElementById('closeMenuBtn').onclick = () => this.toggleDrawer('menuDrawer', false);
-                document.getElementById('overlay').onclick = (e) => {
-                    if(e.target === document.getElementById('overlay')) {
-                        this.closeAll();
-                    }
-                };
-
-                document.getElementById('closeSheetBtn').onclick = () => this.toggleSheet(false);
-                document.getElementById('closeSheetHandle').onclick = () => this.toggleSheet(false);
-
-                // Note Delete
-                document.getElementById('btnDeleteNote').onclick = () => {
-                    if(State.selectedNote) {
-                        const track = State.getCurrentTrack();
-                        const idx = track.notes.indexOf(State.selectedNote);
-                        if(idx !== -1) {
-                            track.notes.splice(idx, 1);
-                            State.selectedNote = null;
-                            History.push();
-                            View.refresh();
-                            this.toggleSheet(false);
-                        }
-                    }
-                };
-                
-                // Track Actions (Moved to Sheet)
-                document.getElementById('sheetClearTrackBtn').onclick = () => {
-                    State.clearCurrentTrack();
-                    this.toggleSheet(false);
-                };
-                
-                document.getElementById('sheetDeleteTrackBtn').onclick = () => {
-                    State.deleteTrack(State.currentTrackIndex);
-                    this.toggleSheet(false);
-                };
-
-                document.querySelectorAll('.tab-link').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        this.switchSheetTab(e.target.dataset.target);
-                    });
-                });
-
-                document.getElementById('toggleGhostNotes').onchange = (e) => {
-                    State.showGhostNotes = e.target.checked;
-                    View.refresh();
-                };
-                document.getElementById('toggleAutoScroll').onchange = (e) => {
-                    State.autoScroll = e.target.checked;
-                };
-                document.getElementById('togglePreviewSound').onchange = (e) => {
-                    State.enablePreview = e.target.checked;
-                };
-            },
-
-            createDragAvatar(trackIdx, rect) {
-                if(this.dragAvatar) this.removeDragAvatar();
-                const avatar = document.createElement('div');
-                avatar.className = 'drag-avatar';
-                avatar.style.width = rect.width + 'px';
-                avatar.style.height = rect.height + 'px';
-                avatar.style.top = rect.top + 'px';
-                avatar.style.left = rect.left + 'px';
-                avatar.innerHTML = `<div style="padding:0 10px; font-weight:bold; font-size:12px;">Track ${trackIdx + 1}</div>`;
-                document.body.appendChild(avatar);
-                this.dragAvatar = avatar;
-            },
-
-            updateDragAvatar(x, y) {
-                if(this.dragAvatar) {
-                    this.dragAvatar.style.top = (y - 20) + 'px'; // Centered vertically
-                    this.dragAvatar.style.left = x + 'px';
-                }
-            },
-
-            removeDragAvatar() {
-                if(this.dragAvatar) {
-                    this.dragAvatar.remove();
-                    this.dragAvatar = null;
-                }
-            },
-
-            switchSheetTab(targetId) {
-                document.querySelectorAll('.tab-link').forEach(b => {
-                    b.style.borderBottom = 'none'; 
-                    b.style.color = '#888';
-                });
-                const activeBtn = document.querySelector(`.tab-link[data-target="${targetId}"]`);
-                if(activeBtn) {
-                    activeBtn.style.borderBottom = '2px solid var(--accent-color)';
-                    activeBtn.style.color = '#333';
-                }
-                
-                document.getElementById('sheet-sound').style.display = 'none';
-                document.getElementById('sheet-note').style.display = 'none';
-                document.getElementById('sheet-track').style.display = 'none';
-                document.getElementById(targetId).style.display = 'block';
-            },
-
-            showConfirm(title, message, onConfirm) {
-                document.getElementById('modalMessage').textContent = message;
-                this.confirmCallback = onConfirm;
-                document.getElementById('overlay').classList.add('active');
-                document.getElementById('confirmModal').classList.add('active');
-            },
-
-            hideModal() {
-                document.getElementById('confirmModal').classList.remove('active');
-                if(!document.getElementById('menuDrawer').classList.contains('active')) {
-                    document.getElementById('overlay').classList.remove('active');
-                }
-                this.confirmCallback = null;
-            },
-
-            toggleDrawer(id, show) {
-                const el = document.getElementById(id);
-                const overlay = document.getElementById('overlay');
-                if (show) {
-                    el.classList.add('active');
-                    overlay.classList.add('active');
-                } else {
-                    el.classList.remove('active');
-                    overlay.classList.remove('active');
-                }
-            },
-
-            toggleSheet(show, defaultTab = null) {
-                const el = document.getElementById('trackSheet');
-                if (show) {
-                    el.classList.add('active');
-                    View.updateSheetUI();
-                    if(defaultTab) this.switchSheetTab(defaultTab);
-                } else {
-                    el.classList.remove('active');
-                }
-            },
-
-            closeAll() {
-                this.hideModal();
-                this.toggleDrawer('menuDrawer', false);
-                this.toggleSheet(false);
-            }
-        };
-
-        /**
          * State Management
          */
         const State = {
             tracks: [],
+            macros: [], // 音色プリセット
             currentTrackIndex: 0,
             viewportStartCol: 0,
             
-            selectedNote: null,
+            currentTool: 'PEN', // 'PEN' | 'SELECT'
+            selectedNotes: [],
+            selectionBox: null,
+            clipboard: [],
+            dragStartNotesState: [],
+            
             tempNote: null,
             interactionMode: 'NONE', 
             isDraggingViewport: false, 
@@ -759,22 +700,21 @@
             isDraggingSeek: false,
             isResizingTimeline: false, 
             isTwoFingerScroll: false, 
+            isKeyScroll: false,
             
-            // Track Reordering
             isTrackDragging: false,
             preparingTrackDrag: false,
             dragTrackIdx: -1,
 
             showGhostNotes: true,
             autoScroll: true,
-            enablePreview: true, // Preview sound enabled by default
+            enablePreview: true,
 
-            // Preview Sound State
             lastPreviewRow: -1,
             lastPreviewLength: -1,
 
             dragStartPos: { x: 0, y: 0 },
-            dragStartOffset: 0, // For viewport handle
+            dragStartOffset: 0,
             scrollStartPos: { x: 0, y: 0 }, 
             scrollStartScroll: { x: 0, y: 0 },
             
@@ -784,12 +724,12 @@
             isPlaying: false,
             playbackPosition: 0,
             playbackStartStep: 0, 
+            playbackStartViewport: 0, 
             startTime: 0,
             
             noteInteractionStart: { x: 0, y: 0 },
             isNoteMoved: false,
             
-            // Overview Touch States
             isOverviewTapped: false,
             overviewTouchStart: { x: 0, y: 0, scrollT: 0 },
 
@@ -867,7 +807,7 @@
                 UI.showConfirm('確認', `トラック ${index + 1} を削除しますか？`, () => {
                     this.tracks.splice(index, 1);
                     if (this.currentTrackIndex >= this.tracks.length) this.currentTrackIndex = this.tracks.length - 1;
-                    this.selectedNote = null;
+                    this.selectedNotes = [];
                     History.push();
                     View.refresh();
                 });
@@ -878,10 +818,415 @@
             clearCurrentTrack() {
                 UI.showConfirm('確認', '現在のトラックのノートを全て削除しますか？', () => {
                     this.getCurrentTrack().notes = [];
-                    this.selectedNote = null;
+                    this.selectedNotes = [];
                     History.push();
                     View.refresh();
                 });
+            }
+        };
+
+        /**
+         * Tools (Copy/Paste/Delete)
+         */
+        const Tools = {
+            copySelected() {
+                if (State.selectedNotes.length === 0) return;
+                const minX = Math.min(...State.selectedNotes.map(n => n.x));
+                State.clipboard = State.selectedNotes.map(n => ({
+                    ...n,
+                    relX: n.x - minX
+                }));
+            },
+            pasteClipboard() {
+                if (State.clipboard.length === 0) return;
+                const pasteBaseX = State.playbackPosition; 
+                const newNotes = State.clipboard.map(n => ({
+                    x: pasteBaseX + n.relX,
+                    y: n.y,
+                    length: n.length,
+                    octave: n.octave,
+                    macro: n.macro
+                }));
+                const track = State.getCurrentTrack();
+                track.notes.push(...newNotes);
+                State.selectedNotes = newNotes; 
+                newNotes.forEach(n => Utils.removeOverlaps(n));
+                History.push();
+                View.refresh();
+                UI.toggleSheet(false);
+            },
+            deleteSelected() {
+                if (State.selectedNotes.length === 0) return;
+                const track = State.getCurrentTrack();
+                track.notes = track.notes.filter(n => !State.selectedNotes.includes(n));
+                State.selectedNotes = [];
+                History.push();
+                View.refresh();
+                UI.toggleSheet(false);
+            }
+        };
+
+        /**
+         * Modal & UI Manager
+         */
+        const UI = {
+            confirmCallback: null,
+            dragAvatar: null,
+            currentMacroIdx: -1,
+
+            init() {
+                document.getElementById('modalCancelBtn').onclick = () => this.hideModal();
+                document.getElementById('modalConfirmBtn').onclick = () => {
+                    if(this.confirmCallback) this.confirmCallback();
+                    this.hideModal();
+                };
+
+                document.getElementById('openMenuBtn').onclick = () => this.toggleDrawer('menuDrawer', true);
+                document.getElementById('closeMenuBtn').onclick = () => this.toggleDrawer('menuDrawer', false);
+                document.getElementById('overlay').onclick = (e) => {
+                    if(e.target === document.getElementById('overlay')) {
+                        this.closeAll();
+                    }
+                };
+
+                document.getElementById('closeSheetBtn').onclick = () => this.toggleSheet(false);
+                document.getElementById('closeSheetHandle').onclick = () => this.toggleSheet(false);
+
+                // Macros
+                document.getElementById('openMacroBtn').onclick = () => {
+                    this.toggleDrawer('menuDrawer', false);
+                    document.getElementById('overlay').classList.add('active');
+                    document.getElementById('macroModal').classList.add('active');
+                    this.updateMacroListUI();
+                };
+                document.getElementById('closeMacroModalBtn').onclick = () => {
+                    document.getElementById('macroModal').classList.remove('active');
+                    if(!document.getElementById('menuDrawer').classList.contains('active')) {
+                        document.getElementById('overlay').classList.remove('active');
+                    }
+                    View.updateNoteMacroSelect(); 
+                    View.refresh();
+                };
+
+                document.getElementById('macroList').onchange = (e) => {
+                    this.currentMacroIdx = parseInt(e.target.value);
+                    this.updateMacroEditorUI();
+                };
+                document.getElementById('addMacroBtn').onclick = () => {
+                    let name = "macro_" + (State.macros.length + 1);
+                    while (State.macros.find(m => m.name === name)) {
+                        name += "_";
+                    }
+                    State.macros.push({
+                        name: name,
+                        settings: { ...State.defaultSettings }
+                    });
+                    this.currentMacroIdx = State.macros.length - 1;
+                    this.updateMacroListUI();
+                    History.push();
+                };
+                document.getElementById('delMacroBtn').onclick = () => {
+                    if (this.currentMacroIdx >= 0 && this.currentMacroIdx < State.macros.length) {
+                        State.macros.splice(this.currentMacroIdx, 1);
+                        this.updateMacroListUI();
+                        History.push();
+                    }
+                };
+                document.getElementById('macroName').onchange = (e) => {
+                    if (this.currentMacroIdx >= 0) {
+                        let val = e.target.value.replace(/[^a-zA-Z0-9_]/g, '');
+                        if (!val) val = "macro";
+                        if (State.macros.find((m, i) => m.name === val && i !== this.currentMacroIdx)) {
+                            val += "_" + this.currentMacroIdx;
+                        }
+                        State.macros[this.currentMacroIdx].name = val;
+                        e.target.value = val;
+                        this.updateMacroListUI();
+                        History.push();
+                    }
+                };
+                ['Waveform'].forEach(p => {
+                    document.getElementById('macro' + p).onchange = (e) => {
+                        if (this.currentMacroIdx >= 0) {
+                            State.macros[this.currentMacroIdx].settings[p.toLowerCase()] = parseInt(e.target.value);
+                            History.push();
+                        }
+                    };
+                });
+                ['Volume', 'Detune', 'Attack', 'Decay', 'Sustain', 'Release'].forEach(p => {
+                    document.getElementById('macro' + p).oninput = (e) => {
+                        if (this.currentMacroIdx >= 0) {
+                            const val = parseInt(e.target.value);
+                            State.macros[this.currentMacroIdx].settings[p.toLowerCase()] = val;
+                            document.getElementById('valMacro' + p).textContent = val;
+                            this.updateMacroEnvelope();
+                        }
+                    };
+                    document.getElementById('macro' + p).onchange = () => History.push();
+                });
+
+
+                // Note Delete
+                document.getElementById('btnDeleteNote').onclick = Tools.deleteSelected;
+                
+                // Track Actions
+                document.getElementById('sheetClearTrackBtn').onclick = () => {
+                    State.clearCurrentTrack();
+                    this.toggleSheet(false);
+                };
+                document.getElementById('sheetDeleteTrackBtn').onclick = () => {
+                    State.deleteTrack(State.currentTrackIndex);
+                    this.toggleSheet(false);
+                };
+
+                document.querySelectorAll('.tab-link').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        this.switchSheetTab(e.target.dataset.target);
+                    });
+                });
+
+                document.getElementById('toggleGhostNotes').onchange = (e) => {
+                    State.showGhostNotes = e.target.checked;
+                    View.refresh();
+                };
+                document.getElementById('toggleAutoScroll').onchange = (e) => {
+                    State.autoScroll = e.target.checked;
+                };
+                document.getElementById('togglePreviewSound').onchange = (e) => {
+                    State.enablePreview = e.target.checked;
+                };
+
+                // Setup Keyboard Shortcuts
+                window.addEventListener('keydown', e => {
+                    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+
+                    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+                        Tools.copySelected();
+                        e.preventDefault();
+                    }
+                    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+                        Tools.pasteClipboard();
+                        e.preventDefault();
+                    }
+                    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+                        if (e.shiftKey) {
+                            History.redo();
+                        } else {
+                            History.undo();
+                        }
+                        e.preventDefault();
+                    }
+                    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+                        History.redo();
+                        e.preventDefault();
+                    }
+                    if (e.key === 'Delete' || e.key === 'Backspace') {
+                        Tools.deleteSelected();
+                        if(e.key === 'Backspace') e.preventDefault();
+                    }
+                });
+
+                // Tool Menu Logic
+                const updateToolUI = () => {
+                    const iconPen = document.getElementById('toolIconPen');
+                    const iconSelect = document.getElementById('toolIconSelect');
+                    const editTools = document.getElementById('editTools');
+                    
+                    if (State.currentTool === 'PEN') {
+                        iconPen.style.display = 'block';
+                        iconSelect.style.display = 'none';
+                        editTools.style.display = 'none';
+                    } else {
+                        iconPen.style.display = 'none';
+                        iconSelect.style.display = 'block';
+                        editTools.style.display = 'flex';
+                    }
+                };
+
+                document.getElementById('toolBtn').addEventListener('click', (e) => {
+                    const menu = document.getElementById('toolMenu');
+                    menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
+                    e.stopPropagation();
+                });
+
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('#toolBtn') && !e.target.closest('#toolMenu')) {
+                        document.getElementById('toolMenu').style.display = 'none';
+                    }
+                });
+
+                document.getElementById('toolPenBtn').addEventListener('click', () => {
+                    State.currentTool = 'PEN';
+                    State.selectedNotes = [];
+                    updateToolUI();
+                    document.getElementById('toolMenu').style.display = 'none';
+                    View.refresh();
+                });
+
+                document.getElementById('toolSelectBtn').addEventListener('click', () => {
+                    State.currentTool = 'SELECT';
+                    updateToolUI();
+                    document.getElementById('toolMenu').style.display = 'none';
+                    View.refresh();
+                });
+
+                document.getElementById('btnCopy').onclick = Tools.copySelected;
+                document.getElementById('btnPaste').onclick = Tools.pasteClipboard;
+                document.getElementById('btnDeleteSel').onclick = Tools.deleteSelected;
+            },
+
+            updateMacroListUI() {
+                const list = document.getElementById('macroList');
+                list.innerHTML = '';
+                State.macros.forEach((m, i) => {
+                    const opt = document.createElement('option');
+                    opt.value = i;
+                    opt.textContent = m.name;
+                    list.appendChild(opt);
+                });
+                if (this.currentMacroIdx >= 0 && this.currentMacroIdx < State.macros.length) {
+                    list.value = this.currentMacroIdx;
+                } else {
+                    this.currentMacroIdx = State.macros.length > 0 ? 0 : -1;
+                    list.value = this.currentMacroIdx;
+                }
+                this.updateMacroEditorUI();
+            },
+
+            updateMacroEditorUI() {
+                const editArea = document.getElementById('macroEditArea');
+                if (this.currentMacroIdx < 0 || this.currentMacroIdx >= State.macros.length) {
+                    editArea.style.pointerEvents = 'none';
+                    editArea.style.opacity = '0.5';
+                    return;
+                }
+                editArea.style.pointerEvents = 'auto';
+                editArea.style.opacity = '1';
+
+                const m = State.macros[this.currentMacroIdx];
+                document.getElementById('macroName').value = m.name;
+                document.getElementById('macroWaveform').value = m.settings.waveform;
+                
+                ['Volume', 'Detune', 'Attack', 'Decay', 'Sustain', 'Release'].forEach(p => {
+                    const val = m.settings[p.toLowerCase()];
+                    document.getElementById('macro' + p).value = val;
+                    document.getElementById('valMacro' + p).textContent = val;
+                });
+                this.updateMacroEnvelope();
+            },
+
+            updateMacroEnvelope() {
+                if (this.currentMacroIdx < 0) return;
+                const path = document.getElementById('macroEnvPath');
+                const s = State.macros[this.currentMacroIdx].settings;
+                const totalMax = 127 * 4; 
+                const scaleX = 100 / totalMax; 
+                const h = 60; const baseY = h; const peakY = 0;
+                const maxAmp = baseY - peakY;
+
+                const att = s.attack * scaleX;
+                const dec = s.decay * scaleX;
+                const rel = s.release * scaleX;
+                const susLvl = s.sustain / 127;
+                const susY = baseY - (susLvl * maxAmp);
+                const susW = 15; 
+
+                const d = `M 0,${baseY} L ${att},${peakY} L ${att + dec},${susY} L ${att + dec + susW},${susY} L ${att + dec + susW + rel},${baseY}`;
+                path.setAttribute('d', d);
+            },
+
+            createDragAvatar(trackIdx, rect) {
+                if(this.dragAvatar) this.removeDragAvatar();
+                const avatar = document.createElement('div');
+                avatar.className = 'drag-avatar';
+                avatar.style.width = rect.width + 'px';
+                avatar.style.height = rect.height + 'px';
+                avatar.style.top = rect.top + 'px';
+                avatar.style.left = rect.left + 'px';
+                avatar.innerHTML = `<div style="padding:0 10px; font-weight:bold; font-size:12px;">Track ${trackIdx + 1}</div>`;
+                document.body.appendChild(avatar);
+                this.dragAvatar = avatar;
+            },
+
+            updateDragAvatar(x, y) {
+                if(this.dragAvatar) {
+                    this.dragAvatar.style.top = (y - 20) + 'px'; 
+                    this.dragAvatar.style.left = x + 'px';
+                }
+            },
+
+            removeDragAvatar() {
+                if(this.dragAvatar) {
+                    this.dragAvatar.remove();
+                    this.dragAvatar = null;
+                }
+            },
+
+            switchSheetTab(targetId) {
+                document.querySelectorAll('.tab-link').forEach(b => {
+                    b.style.borderBottom = 'none'; 
+                    b.style.color = '#888';
+                });
+                const activeBtn = document.querySelector(`.tab-link[data-target="${targetId}"]`);
+                if(activeBtn) {
+                    activeBtn.style.borderBottom = '2px solid var(--accent-color)';
+                    activeBtn.style.color = '#333';
+                }
+                
+                document.getElementById('sheet-sound').style.display = 'none';
+                document.getElementById('sheet-note').style.display = 'none';
+                document.getElementById('sheet-track').style.display = 'none';
+                document.getElementById(targetId).style.display = 'block';
+            },
+
+            showConfirm(title, message, onConfirm) {
+                document.getElementById('modalMessage').textContent = message;
+                this.confirmCallback = onConfirm;
+                document.getElementById('overlay').classList.add('active');
+                document.getElementById('confirmModal').classList.add('active');
+            },
+
+            hideModal() {
+                document.getElementById('confirmModal').classList.remove('active');
+                if(!document.getElementById('menuDrawer').classList.contains('active') && !document.getElementById('macroModal').classList.contains('active')) {
+                    document.getElementById('overlay').classList.remove('active');
+                }
+                this.confirmCallback = null;
+            },
+
+            toggleDrawer(id, show) {
+                const el = document.getElementById(id);
+                const overlay = document.getElementById('overlay');
+                if (show) {
+                    el.classList.add('active');
+                    overlay.classList.add('active');
+                } else {
+                    el.classList.remove('active');
+                    if(!document.getElementById('macroModal').classList.contains('active')) {
+                        overlay.classList.remove('active');
+                    }
+                }
+            },
+
+            toggleSheet(show, defaultTab = null) {
+                const el = document.getElementById('trackSheet');
+                if (show) {
+                    el.classList.add('active');
+                    View.updateSheetUI();
+                    if(defaultTab) this.switchSheetTab(defaultTab);
+                } else {
+                    el.classList.remove('active');
+                }
+            },
+
+            closeAll() {
+                this.hideModal();
+                this.toggleDrawer('menuDrawer', false);
+                this.toggleSheet(false);
+                document.getElementById('macroModal').classList.remove('active');
+                document.getElementById('overlay').classList.remove('active');
+                View.updateNoteMacroSelect();
+                View.refresh();
             }
         };
 
@@ -891,7 +1236,7 @@
         const History = {
             undoStack: [], redoStack: [], lastJson: '',
             push() {
-                const currentJson = JSON.stringify(State.tracks);
+                const currentJson = JSON.stringify({ tracks: State.tracks, macros: State.macros });
                 if (currentJson === this.lastJson) return;
                 this.undoStack.push(this.lastJson);
                 if (this.undoStack.length > 50) this.undoStack.shift();
@@ -900,20 +1245,22 @@
                 this.updateUI();
             },
             init() {
-                this.lastJson = JSON.stringify(State.tracks);
+                this.lastJson = JSON.stringify({ tracks: State.tracks, macros: State.macros });
                 this.updateUI();
             },
             undo() {
                 if (this.undoStack.length === 0) return;
                 const prev = this.undoStack.pop();
-                this.redoStack.push(JSON.stringify(State.tracks));
+                this.redoStack.push(JSON.stringify({ tracks: State.tracks, macros: State.macros }));
                 this.lastJson = prev;
                 if (prev) {
-                    State.tracks = JSON.parse(prev);
+                    const data = JSON.parse(prev);
+                    State.tracks = data.tracks;
+                    State.macros = data.macros || [];
                     if (State.currentTrackIndex >= State.tracks.length) {
                         State.currentTrackIndex = Math.max(0, State.tracks.length - 1);
                     }
-                    State.selectedNote = null; 
+                    State.selectedNotes = []; 
                     View.refresh(); 
                 }
                 this.updateUI();
@@ -921,13 +1268,15 @@
             redo() {
                 if (this.redoStack.length === 0) return;
                 const next = this.redoStack.pop();
-                this.undoStack.push(JSON.stringify(State.tracks));
+                this.undoStack.push(JSON.stringify({ tracks: State.tracks, macros: State.macros }));
                 this.lastJson = next;
-                State.tracks = JSON.parse(next);
+                const data = JSON.parse(next);
+                State.tracks = data.tracks;
+                State.macros = data.macros || [];
                 if (State.currentTrackIndex >= State.tracks.length) {
                     State.currentTrackIndex = Math.max(0, State.tracks.length - 1);
                 }
-                State.selectedNote = null;
+                State.selectedNotes = [];
                 View.refresh();
                 this.updateUI();
             },
@@ -942,7 +1291,7 @@
          */
         const Audio = {
             flmml: null,
-            ctx: null, // Web Audio Context for Preview
+            ctx: null, 
 
             init() {
                 this.flmml = new FlMML({
@@ -952,11 +1301,9 @@
                 this.setMasterVolume(0.7);
             },
 
-            // Web Audio API for interactive preview
             previewNote(row) {
                 if (!State.enablePreview) return;
                 
-                // Initialize context on first user gesture
                 if (!this.ctx) {
                     this.ctx = new (window.AudioContext || window.webkitAudioContext)();
                 }
@@ -967,10 +1314,8 @@
                 const octaveFromTop = Math.floor(row / 12);
                 const octave = (Config.OCTAVES - 1 - octaveFromTop) + Config.BASE_OCTAVE;
                 const pitchIdx = 11 - (row % 12);
-                // Lowered 1 octave to match FlMML
                 const noteNum = octave * 12 + pitchIdx;
                 
-                // Frequency calculation (Equal Temperament)
                 const freq = 440 * Math.pow(2, (noteNum - 69) / 12);
 
                 const osc = this.ctx.createOscillator();
@@ -979,9 +1324,8 @@
                 osc.type = 'square';
                 osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
 
-                // Short decay envelope
                 const masterVol = parseFloat(document.getElementById('masterVolume').value) || 0.5;
-                const vol = masterVol * 0.2; // Reduce volume for preview
+                const vol = masterVol * 0.2; 
                 
                 gain.gain.setValueAtTime(vol, this.ctx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
@@ -992,7 +1336,6 @@
                 osc.start();
                 osc.stop(this.ctx.currentTime + 0.15);
                 
-                // Cleanup
                 osc.onended = () => {
                     osc.disconnect();
                     gain.disconnect();
@@ -1004,8 +1347,8 @@
                 try {
                     this.stop(false);
                     State.isPlaying = true;
-                    // Remember where we started to return later
                     State.playbackStartStep = startStep;
+                    State.playbackStartViewport = State.viewportStartCol; 
                     
                     const mml = this.generateMML(startStep);
                     const tempo = parseInt(document.getElementById('tempoInput').value);
@@ -1017,12 +1360,14 @@
                     View.updatePlayButton();
                 } catch (e) { console.error(e); this.stop(true); }
             },
-            // resetPos: true = Reset to start position (Stop button), false = Stay at current (Pause)
+            
             stop(resetPos = true) {
                 State.isPlaying = false;
                 if(this.flmml) this.flmml.stop();
                 if (resetPos) {
                     State.playbackPosition = State.playbackStartStep;
+                    State.viewportStartCol = State.playbackStartViewport; 
+                    View.refresh(); 
                 }
                 View.updatePlaybackIndicators();
                 View.updatePlayButton();
@@ -1038,7 +1383,6 @@
                 const steps = (now - State.startTime) * (tempo / 60) * 4;
                 State.playbackPosition = Math.floor(steps);
                 
-                // --- Auto Scroll Logic ---
                 const visibleCols = Math.floor((View.canvas.width - Config.KEY_WIDTH) / Config.GRID_W);
                 let needsRefresh = false;
                 if (State.autoScroll) {
@@ -1054,19 +1398,30 @@
                 View.updatePlaybackIndicators();
                 View.updateTimeDisplay();
 
-                // Check if playback finished
                 if (this.flmml.getTotalMSec() > 0 && this.flmml.getNowMSec() >= this.flmml.getTotalMSec()) {
-                    setTimeout(() => this.stop(true), 100); // Return to start position
+                    setTimeout(() => this.stop(true), 100); 
                 } else {
                     if (needsRefresh) View.refresh();
                     requestAnimationFrame(() => this.loop());
                 }
             },
             generateMML(startStep) {
-                let mml = `T${document.getElementById('tempoInput').value} L16\n`;
+                let mml = "";
+                
+                State.macros.forEach(m => {
+                    const s = m.settings;
+                    mml += `$${m.name}=@${s.waveform} @E1,${s.attack},${s.decay},${s.sustain},${s.release} @D${s.detune} @V${s.volume};\n`;
+                });
+
+                mml += `T${document.getElementById('tempoInput').value} L16\n`;
+
                 State.tracks.forEach(track => {
                     const s = track.settings;
-                    mml += `@${s.waveform} @E1,${s.attack},${s.decay},${s.sustain},${s.release} @D${s.detune} @V${s.volume} Q16 @Q1\n`;
+                    const baseMacro = `@${s.waveform} @E1,${s.attack},${s.decay},${s.sustain},${s.release} @D${s.detune} @V${s.volume}`;
+                    mml += `${baseMacro} Q16 @Q1\n`;
+                    
+                    let currentMacro = "";
+
                     const notes = [...track.notes].sort((a, b) => a.x - b.x);
                     let currentStep = startStep;
                     let currentOctave = 4;
@@ -1086,6 +1441,17 @@
                             mml += diff > 0 ? "<".repeat(diff) : ">".repeat(Math.abs(diff));
                             currentOctave = octave;
                         }
+
+                        const targetMacro = note.macro || "";
+                        if (currentMacro !== targetMacro) {
+                            if (targetMacro === "") {
+                                mml += baseMacro;
+                            } else {
+                                mml += `$${targetMacro}`;
+                            }
+                            currentMacro = targetMacro;
+                        }
+
                         mml += `${Config.PITCHES[pitchIdx]}${this.stepsToNoteLenMML(note.length)}`;
                         currentStep += note.length;
                     });
@@ -1149,11 +1515,10 @@
                 this.updateEnvelope();
             },
             
-            // NEW: Lightweight selection update without DOM rebuild
             selectTrack(idx) {
                 State.currentTrackIndex = idx;
-                this.updateOverviewViewport(); // Updates CSS classes
-                this.render(); // Redraw canvas (notes/grid)
+                this.updateOverviewViewport(); 
+                this.render(); 
                 this.updateSheetUI();
                 this.updateEnvelope();
             },
@@ -1239,7 +1604,6 @@
                 ctx.rect(kw, 0, canvas.width - kw, canvas.height);
                 ctx.clip();
 
-                // --- Draw Ghost Notes (other tracks) ---
                 if (State.showGhostNotes) {
                     State.tracks.forEach((track, tIdx) => {
                         if (tIdx === State.currentTrackIndex) return;
@@ -1256,7 +1620,6 @@
                     });
                 }
 
-                // --- Draw Current Track Notes ---
                 const currentTrack = State.getCurrentTrack();
                 const sortedNotes = [...currentTrack.notes].sort((a, b) => a.x - b.x);
 
@@ -1267,7 +1630,7 @@
                     
                     if (x + w < kw || x > canvas.width) return;
 
-                    const isSelected = (note === State.selectedNote);
+                    const isSelected = State.selectedNotes.includes(note);
                     
                     ctx.fillStyle = isSelected ? Config.COLORS.NOTE_SELECTED : Config.COLORS.NOTE;
                     ctx.fillRect(x + 1, y + 1, w - 2, Config.GRID_H - 2);
@@ -1291,6 +1654,13 @@
                             }
                         }
                     }
+
+                    if (note.macro) {
+                        ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+                        ctx.font = "bold 9px monospace";
+                        ctx.textBaseline = "top";
+                        ctx.fillText("$" + note.macro, x + 2, y + (w > 14 && note.octave !== (index>0?sortedNotes[index-1].octave:note.octave) ? 12 : 2));
+                    }
                 });
 
                 if (State.tempNote) {
@@ -1299,6 +1669,22 @@
                     ctx.fillStyle = Config.COLORS.NOTE_TEMP;
                     ctx.fillRect(x, n.y, n.length * Config.GRID_W, Config.GRID_H);
                 }
+
+                if (State.selectionBox) {
+                    const startX = Math.max(Config.KEY_WIDTH, State.selectionBox.startX);
+                    const currentX = Math.max(Config.KEY_WIDTH, State.selectionBox.currentX);
+                    const x = Math.min(startX, currentX);
+                    const y = Math.min(State.selectionBox.startY, State.selectionBox.currentY);
+                    const w = Math.abs(currentX - startX);
+                    const h = Math.abs(State.selectionBox.currentY - State.selectionBox.startY);
+                    
+                    ctx.fillStyle = "rgba(34, 139, 230, 0.2)";
+                    ctx.fillRect(x, y, w, h);
+                    ctx.strokeStyle = "rgba(34, 139, 230, 0.8)";
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(x, y, w, h);
+                }
+
                 ctx.restore();
             },
 
@@ -1310,7 +1696,6 @@
                 this.drawNotes();
             },
 
-            // Full rebuild of overview
             renderOverview(forceRebuild = false) {
                 const container = this.overviewContainer;
                 const savedScroll = container.scrollTop;
@@ -1327,7 +1712,6 @@
                     if(State.isTrackDragging && State.dragTrackIdx === idx) row.classList.add('dragging');
                     row.dataset.index = idx;
                     
-                    // 1. Label
                     const label = document.createElement('div');
                     label.className = 'overview-track-label';
                     label.innerHTML = `<div>Trk</div><div>${idx + 1}</div>`;
@@ -1335,7 +1719,6 @@
                         View.selectTrack(idx);
                     };
                     
-                    // 2. Content (Canvas)
                     const content = document.createElement('div');
                     content.className = 'overview-track-content';
                     const miniCanvas = document.createElement('canvas');
@@ -1348,13 +1731,10 @@
                     });
                     content.appendChild(miniCanvas);
                     
-                    // 3. Action Column
                     const action = document.createElement('div');
                     action.className = 'overview-track-action';
-                    // Hamburger/Grip icon
                     action.innerHTML = '<svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>';
                     
-                    // Bind Events for Action
                     action.onmousedown = (e) => Input.handleActionDown(e, idx);
                     action.ontouchstart = (e) => Input.handleActionDown(e, idx);
 
@@ -1364,19 +1744,16 @@
                     container.appendChild(row);
                 });
 
-                // Add Track Button Row
                 const addRow = document.createElement('div');
                 addRow.className = 'overview-add-btn';
                 addRow.innerHTML = '+ トラックを追加';
                 addRow.onclick = () => { State.addTrack(); View.refresh(); };
                 container.appendChild(addRow);
 
-                // Indicator
                 const indicator = document.createElement('div');
                 indicator.className = 'viewport-indicator';
                 container.appendChild(indicator);
                 
-                // Drop Indicator
                 const dropInd = document.createElement('div');
                 dropInd.id = 'dropIndicator';
                 dropInd.className = 'drop-indicator';
@@ -1386,14 +1763,12 @@
                 this.updateOverviewViewport();
             },
 
-            // Lightweight update for overview (Indicator & Active track only)
             updateOverviewViewport() {
                 const container = this.overviewContainer;
                 if (!container || container.clientWidth === 0) return;
 
                 const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH - Config.ACTION_WIDTH, 100);
 
-                // Update Active Track
                 Array.from(container.children).forEach(child => {
                      if (child.classList.contains('overview-track')) {
                          const idx = parseInt(child.dataset.index);
@@ -1402,7 +1777,6 @@
                      }
                 });
 
-                // Update Indicator
                 let indicator = container.querySelector('.viewport-indicator');
                 if (indicator) {
                     const visibleCols = Math.ceil((this.canvas.width - Config.KEY_WIDTH) / Config.GRID_W);
@@ -1455,7 +1829,6 @@
                 if(el) el.textContent = text;
             },
             
-            // --- Helper methods for Drag Feedback without full refresh ---
             setTrackDraggingState(idx, isDragging) {
                 const row = document.querySelector(`.overview-track[data-index="${idx}"]`);
                 if (row) {
@@ -1476,7 +1849,21 @@
                 const el = document.getElementById('dropIndicator');
                 if(el) el.style.display = 'none';
             },
-            // ------------------------------------------------------------
+
+            updateNoteMacroSelect() {
+                const sel = document.getElementById('noteMacroSelect');
+                if(!sel) return;
+                const currentVal = sel.value;
+                sel.innerHTML = '<option value="">(現在の音色を維持)</option>';
+                State.macros.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m.name;
+                    opt.textContent = m.name;
+                    sel.appendChild(opt);
+                });
+                sel.value = currentVal;
+                if (sel.selectedIndex === -1) sel.value = "";
+            },
 
             updateSheetUI() {
                 const t = State.getCurrentTrack().settings;
@@ -1495,7 +1882,7 @@
                 setVal('trackAttack', t.attack); setVal('trackDecay', t.decay);
                 setVal('trackSustain', t.sustain); setVal('trackRelease', t.release);
 
-                const n = State.selectedNote;
+                const n = State.selectedNotes.length === 1 ? State.selectedNotes[0] : null;
                 if(n) {
                     document.getElementById('notePropsContainer').style.display = 'block';
                     document.getElementById('noNoteMsg').style.display = 'none';
@@ -1505,6 +1892,14 @@
                     document.getElementById('notePitchName').textContent = `(${Config.PITCHES[pitchIdx]})`;
                     document.getElementById('noteOctave').value = n.octave; 
                     document.getElementById('noteLength').value = n.length;
+                    
+                    this.updateNoteMacroSelect();
+                    document.getElementById('noteMacroSelect').value = n.macro || "";
+                    
+                    const macroContainer = document.getElementById('noteMacroContainer');
+                    if (macroContainer) {
+                        macroContainer.style.display = State.macros.length > 0 ? 'flex' : 'none';
+                    }
                 } else {
                     document.getElementById('notePropsContainer').style.display = 'none';
                     document.getElementById('noNoteMsg').style.display = 'block';
@@ -1526,11 +1921,7 @@
                 const susY = baseY - (susLvl * maxAmp);
                 const susW = 15; 
 
-                const d = `M 0,${baseY} 
-                           L ${att},${peakY} 
-                           L ${att + dec},${susY} 
-                           L ${att + dec + susW},${susY} 
-                           L ${att + dec + susW + rel},${baseY}`;
+                const d = `M 0,${baseY} L ${att},${peakY} L ${att + dec},${susY} L ${att + dec + susW},${susY} L ${att + dec + susW + rel},${baseY}`;
                 path.setAttribute('d', d);
             }
         };
@@ -1547,21 +1938,17 @@
                 const bar = document.getElementById('playbackBarArea');
                 const resizer = document.getElementById('timelineResizer');
                 
-                // Helper for touch events
                 const handleTouch = (handler, e) => {
                     if (e.cancelable) e.preventDefault();
                     handler(this.touchToMouse(e));
                 };
                 
-                // --- Global Events ---
                 const handleMove = (e) => {
                     const m = this.touchToMouse(e);
                     
-                    // Track Drag: Detect drag start from handle
                     if (State.preparingTrackDrag) {
                         const dx = m.clientX - this.dragStartClientPos.x;
                         const dy = m.clientY - this.dragStartClientPos.y;
-                        // Threshold 5px to detect intentional drag
                         if (dx * dx + dy * dy > 25) { 
                             State.preparingTrackDrag = false;
                             this.startTrackDrag(State.dragTrackIdx, m);
@@ -1587,11 +1974,9 @@
                         return;
                     }
                     
-                    // Track Handle Tap (Not dragged)
                     if (State.preparingTrackDrag) {
                         State.preparingTrackDrag = false;
                         State.dragTrackIdx = -1;
-                        // Tap behavior: Open Menu
                         UI.toggleSheet(true, 'sheet-sound');
                     }
                     
@@ -1604,19 +1989,21 @@
                 document.addEventListener('touchend', handleUp);
                 document.addEventListener('mouseup', handleUp);
 
-                // --- Canvas Events ---
                 cvs.addEventListener('touchstart', e => {
                     if (e.touches.length >= 2) {
                         if (State.interactionMode === 'DRAW') {
                             State.tempNote = null; 
-                        } else if ((State.interactionMode === 'MOVE' || State.interactionMode === 'RESIZE') && State.selectedNote && State.dragStartNoteState) {
-                             Object.assign(State.selectedNote, State.dragStartNoteState);
+                        } else if ((State.interactionMode === 'MOVE' || State.interactionMode === 'RESIZE') && State.selectedNotes.length === 1 && State.dragStartNoteState) {
+                             Object.assign(State.selectedNotes[0], State.dragStartNoteState);
+                        } else if (State.interactionMode === 'MOVE_MULTI') {
+                             State.selectedNotes.forEach((n, i) => Object.assign(n, State.dragStartNotesState[i]));
                         }
                         
                         State.interactionMode = 'NONE';
-                        State.selectedNote = null; 
+                        State.selectedNotes = []; 
 
                         State.isTwoFingerScroll = true;
+                        State.isKeyScroll = false;
                         State.scrollStartPos = { x: (e.touches[0].clientX + e.touches[1].clientX)/2, y: (e.touches[0].clientY + e.touches[1].clientY)/2 };
                         const area = document.getElementById('canvasArea');
                         State.scrollStartScroll = { x: State.viewportStartCol, y: area.scrollTop };
@@ -1625,8 +2012,21 @@
                     } 
                     else if (e.touches.length === 1) {
                         State.isTwoFingerScroll = false;
-                        if (e.cancelable) e.preventDefault();
-                        this.handleCanvasDown(this.touchToMouse(e));
+                        
+                        const rect = cvs.getBoundingClientRect();
+                        const x = e.touches[0].clientX - rect.left;
+
+                        if (x <= Config.KEY_WIDTH) {
+                            State.isKeyScroll = true;
+                            State.scrollStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                            const area = document.getElementById('canvasArea');
+                            State.scrollStartScroll = { x: State.viewportStartCol, y: area.scrollTop };
+                            if (e.cancelable) e.preventDefault(); 
+                        } else {
+                            State.isKeyScroll = false;
+                            if (e.cancelable) e.preventDefault();
+                            this.handleCanvasDown(this.touchToMouse(e));
+                        }
                     }
                 }, {passive: false});
                 
@@ -1644,7 +2044,14 @@
                         const colDiff = Math.round(dx / Config.GRID_W);
                         State.viewportStartCol = Math.max(0, Math.min(Config.TOTAL_COLS - 1, State.scrollStartScroll.x - colDiff));
                         View.refresh();
-                    } 
+                    } else if (State.isKeyScroll && e.touches.length === 1) {
+                        e.preventDefault();
+                        const currentY = e.touches[0].clientY;
+                        const dy = currentY - State.scrollStartPos.y;
+                        
+                        const area = document.getElementById('canvasArea');
+                        area.scrollTop = State.scrollStartScroll.y - dy;
+                    }
                 }, {passive: false});
 
                 cvs.addEventListener('wheel', e => {
@@ -1658,12 +2065,8 @@
 
                 cvs.addEventListener('mousedown', e => this.handleCanvasDown(e));
                 
-                // --- Overview Events (Touch) ---
-                // Touch Start
                 ovr.addEventListener('touchstart', e => {
                     if(e.touches.length > 1) return;
-                    
-                    // Ignore if target is the action button (handled separately)
                     if (e.target.closest('.overview-track-action')) return;
                     if (e.target.closest('.overview-add-btn')) return;
 
@@ -1672,27 +2075,17 @@
                     const x = t.clientX - rect.left;
                     const y = t.clientY - rect.top + ovr.scrollTop; 
 
-                    // Label Area (Left): Allow native scroll
                     if (x <= Config.LABEL_WIDTH) return;
-
-                    // Track Area (Right): Always allow Drag Mode anywhere
                     e.preventDefault(); 
-                    
-                    // Immediate Jump first
                     this.handleOverviewJump(x, y);
 
-                    // Then setup drag
                     const fullW = Math.max(ovr.clientWidth - Config.LABEL_WIDTH - Config.ACTION_WIDTH, 100);
                     const newILeft = Config.LABEL_WIDTH + ((State.viewportStartCol / Config.TOTAL_COLS) * fullW);
 
                     State.isDraggingViewportHandle = true;
                     State.dragStartOffset = x - newILeft;
-
                 }, {passive: false});
 
-                // Touch Move / End are handled by global listeners
-                
-                // --- Overview Events (Mouse) ---
                 ovr.addEventListener('mousedown', e => {
                     if (e.target.closest('.overview-track-action')) return;
                     if (e.target.closest('.overview-add-btn')) return;
@@ -1702,11 +2095,8 @@
                     if (x <= Config.LABEL_WIDTH) return;
                     
                     const y = e.clientY - rect.top + ovr.scrollTop;
-                    
-                    // Mouse click jumps immediately
                     this.handleOverviewJump(x, y);
                     
-                    // Then start dragging from there
                     const fullW = Math.max(ovr.clientWidth - Config.LABEL_WIDTH - Config.ACTION_WIDTH, 100);
                     const newILeft = Config.LABEL_WIDTH + ((State.viewportStartCol / Config.TOTAL_COLS) * fullW);
                     
@@ -1728,11 +2118,9 @@
                 this.bindControls();
             },
             
-            // --- Action Column Handling ---
             handleActionDown(e, idx) {
-                // Prevent scrolling when touching the handle
                 if(e.cancelable) e.preventDefault();
-                e.stopPropagation(); // Stop bubbling to overview
+                e.stopPropagation(); 
                 
                 const m = this.touchToMouse(e);
                 this.dragStartClientPos = { x: m.clientX, y: m.clientY };
@@ -1740,7 +2128,6 @@
                 State.dragTrackIdx = idx;
                 State.preparingTrackDrag = true;
                 
-                // Use lightweight update to avoid destroying the DOM element that fired this event
                 View.selectTrack(idx);
             },
 
@@ -1748,15 +2135,12 @@
                 State.isTrackDragging = true;
                 State.dragTrackIdx = idx;
                 
-                // Visual feedback
                 const row = document.querySelector(`.overview-track[data-index="${idx}"]`);
                 if(row) {
                     const rect = row.getBoundingClientRect();
                     UI.createDragAvatar(idx, rect);
-                    // Initial pos update
                     UI.updateDragAvatar(pos.clientX, pos.clientY);
                 }
-                
                 View.setTrackDraggingState(idx, true);
             },
 
@@ -1766,7 +2150,6 @@
                 const clientX = e.clientX;
                 UI.updateDragAvatar(clientX, clientY);
                 
-                // Show drop indicator
                 const ovr = document.getElementById('overviewContainer');
                 const rect = ovr.getBoundingClientRect();
                 const relativeY = clientY - rect.top + ovr.scrollTop;
@@ -1774,7 +2157,6 @@
                 let targetIdx = Math.round(contentY / 40);
                 targetIdx = Math.max(0, Math.min(State.tracks.length, targetIdx));
                 
-                // Position line
                 const lineY = 24 + (targetIdx * 40);
                 View.showDropIndicator(lineY);
             },
@@ -1784,37 +2166,30 @@
                 
                 UI.removeDragAvatar();
                 View.hideDropIndicator();
-                View.setTrackDraggingState(State.dragTrackIdx, false); // Restore style
+                View.setTrackDraggingState(State.dragTrackIdx, false); 
 
-                // Calculate drop target
                 const ovr = document.getElementById('overviewContainer');
                 const rect = ovr.getBoundingClientRect();
                 const relativeY = e.clientY - rect.top + ovr.scrollTop;
-                // Subtract padding
                 const contentY = relativeY - 24; 
                 
-                // Determine insertion index (0 to tracks.length)
-                // Using round gives nearest boundary
                 let targetIdx = Math.round(contentY / 40);
                 targetIdx = Math.max(0, Math.min(State.tracks.length, targetIdx));
                 
                 const currentIdx = State.dragTrackIdx;
                 
-                // If dropped at same position or adjacent (no change)
                 if (targetIdx !== currentIdx && targetIdx !== currentIdx + 1) {
-                    // Adjust index because removing item shifts indices
                     let insertAt = targetIdx;
                     if (targetIdx > currentIdx) insertAt -= 1;
                     State.reorderTrack(currentIdx, insertAt);
                 } else {
-                    View.refresh(); // Just restore look
+                    View.refresh(); 
                 }
                 
-                // Delay clearing the flag so click handler knows we were dragging
                 setTimeout(() => {
                     State.isTrackDragging = false;
                     State.dragTrackIdx = -1;
-                    View.refresh(); // Ensure UI is fully synced
+                    View.refresh(); 
                 }, 0);
             },
             
@@ -1823,6 +2198,7 @@
                 return {
                     clientX: t.clientX, clientY: t.clientY,
                     target: e.target, button: (e.touches && e.touches.length > 1) ? 0 : (e.button || 0),
+                    shiftKey: e.shiftKey || false, ctrlKey: e.ctrlKey || false, metaKey: e.metaKey || false,
                     preventDefault: () => e.preventDefault && e.preventDefault()
                 };
             },
@@ -1840,7 +2216,7 @@
             handleCanvasDown(e) {
                 if (State.isTwoFingerScroll) return;
 
-                if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+                if (e.button === 1) { // Middle click for PAN
                     State.interactionMode = 'PAN';
                     State.dragStartPos = { x: e.clientX, y: e.clientY };
                     State.dragStartViewport = State.viewportStartCol;
@@ -1861,31 +2237,68 @@
                     return;
                 }
 
-                State.interactionMode = 'DRAW';
+                const clickedNote = track.notes.find(n => n.y === pos.y && pos.col >= n.x && pos.col < n.x + n.length);
+                const isShift = e.shiftKey;
+                const isSelectTool = State.currentTool === 'SELECT';
+
+                // Shift + drag OR Select tool + drag empty space -> BOX SELECT
+                if ((e.button === 0 && isShift) || (isSelectTool && !clickedNote)) {
+                    State.interactionMode = 'BOX_SELECT';
+                    const rect = View.canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    State.selectionBox = { 
+                        startX: x, startY: y, 
+                        currentX: x, currentY: y 
+                    };
+                    if (!isShift && !e.ctrlKey && !e.metaKey) {
+                        State.selectedNotes = [];
+                    }
+                    View.refresh();
+                    return;
+                }
+
                 State.dragStartPos = { x: pos.col, y: pos.row };
                 State.isNoteMoved = false;
                 State.noteInteractionStart = { x: e.clientX, y: e.clientY };
 
-                const clickedNote = track.notes.find(n => n.y === pos.y && pos.col >= n.x && pos.col < n.x + n.length);
+                if (isSelectTool) {
+                    if (clickedNote) {
+                        if (isShift || e.ctrlKey || e.metaKey) {
+                            const idx = State.selectedNotes.indexOf(clickedNote);
+                            if (idx >= 0) State.selectedNotes.splice(idx, 1);
+                            else State.selectedNotes.push(clickedNote);
+                        } else {
+                            if (!State.selectedNotes.includes(clickedNote)) {
+                                State.selectedNotes = [clickedNote];
+                            }
+                        }
+                        State.interactionMode = 'MOVE_MULTI';
+                        State.dragStartNotesState = State.selectedNotes.map(n => ({...n}));
+                        View.refresh();
+                    }
+                    return;
+                }
 
+                // DRAW TOOL (PEN) behavior
                 if (clickedNote) {
-                    State.selectedNote = clickedNote;
+                    State.selectedNotes = [clickedNote]; 
                     State.dragStartNoteState = { ...clickedNote };
                     if (pos.col === clickedNote.x + clickedNote.length - 1) {
                         State.interactionMode = 'RESIZE';
-                        State.lastPreviewLength = clickedNote.length; // Init preview state
+                        State.lastPreviewLength = clickedNote.length; 
                     } else {
                         State.interactionMode = 'MOVE';
-                        State.lastPreviewRow = Math.floor(clickedNote.y / Config.GRID_H); // Init preview state
+                        State.lastPreviewRow = Math.floor(clickedNote.y / Config.GRID_H); 
                     }
                 } else {
-                    State.selectedNote = null;
+                    State.selectedNotes = [];
                     const prevNotes = track.notes.filter(n => n.x <= pos.col);
                     prevNotes.sort((a, b) => b.x - a.x);
                     const newOctave = prevNotes[0] ? prevNotes[0].octave : 4;
                     State.tempNote = { x: pos.col, y: pos.y, length: 1, octave: newOctave };
                     
-                    // Preview Sound on Draw Start
+                    State.interactionMode = 'DRAW';
                     const row = Math.floor(pos.y / Config.GRID_H);
                     State.lastPreviewRow = row;
                     Audio.previewNote(row);
@@ -1893,19 +2306,15 @@
                 View.refresh();
             },
 
-            // Common Logic for jumping to a position in Overview
             handleOverviewJump(x, y) {
                 const container = document.getElementById('overviewContainer');
                 
-                // Track selection logic
                 const clickedTrackY = y - 24; 
                 const trackIdx = Math.floor(clickedTrackY / 40);
                 if (trackIdx >= 0 && trackIdx < State.tracks.length) {
-                    // Use lightweight update
                     View.selectTrack(trackIdx);
                 }
 
-                // Viewport jump logic
                 const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH - Config.ACTION_WIDTH, 100);
                 const pxPerStep = fullW / Config.TOTAL_COLS;
                 const visibleCols = Math.ceil((View.canvas.width - Config.KEY_WIDTH) / Config.GRID_W);
@@ -1913,16 +2322,13 @@
                 const clickCol = (x - Config.LABEL_WIDTH) / pxPerStep;
                 let newViewport = Math.floor(clickCol - (visibleCols / 2));
                 
-                // Clamp
                 newViewport = Math.max(0, Math.min(Config.TOTAL_COLS - visibleCols, newViewport));
                 State.viewportStartCol = newViewport;
                 
-                // IMPORTANT: Use lighter update method
                 View.render();
                 View.updateOverviewViewport();
             },
             
-            // Logic for dragging the indicator
             handleOverviewDrag(clientX) {
                 const container = document.getElementById('overviewContainer');
                 const fullW = Math.max(container.clientWidth - Config.LABEL_WIDTH - Config.ACTION_WIDTH, 100);
@@ -1935,7 +2341,6 @@
                 const visibleCols = Math.ceil((View.canvas.width - Config.KEY_WIDTH) / Config.GRID_W);
                 State.viewportStartCol = Math.max(0, Math.min(Config.TOTAL_COLS - visibleCols, Math.floor(ratio * Config.TOTAL_COLS)));
                 
-                // IMPORTANT: Use lighter update method
                 View.render();
                 View.updateOverviewViewport();
             },
@@ -1948,10 +2353,8 @@
             updateSeek(e) {
                 const bar = document.getElementById('playbackBarArea');
                 const rect = bar.getBoundingClientRect();
-                // Since the bar is absolute positioned with left margin, rect.left gives the actual screen coordinate where it starts
                 let x = e.clientX - rect.left; 
                 
-                // Map to 0 - width
                 const fullW = rect.width;
                 x = Math.max(0, Math.min(x, fullW));
                 
@@ -1977,7 +2380,6 @@
                 }
                 if (State.isDraggingSeek) { this.updateSeek(e); return; }
                 
-                // Overview Drag (Mouse & Touch)
                 if (State.isDraggingViewportHandle) {
                     this.handleOverviewDrag(e.clientX);
                     return;
@@ -1992,6 +2394,16 @@
                     return;
                 }
                 
+                if (State.interactionMode === 'BOX_SELECT') {
+                    const rect = View.canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    State.selectionBox.currentX = x;
+                    State.selectionBox.currentY = y;
+                    View.refresh();
+                    return;
+                }
+
                 if (State.interactionMode === 'NONE') return;
                 
                 const moveDist = Math.sqrt(Math.pow(e.clientX - State.noteInteractionStart.x, 2) + Math.pow(e.clientY - State.noteInteractionStart.y, 2));
@@ -2001,42 +2413,68 @@
                 
                 if (State.interactionMode === 'DRAW' && State.tempNote) {
                     const newLen = Math.max(1, pos.col - State.tempNote.x + 1);
-                    // Do NOT update Y coordinate (keep pitch fixed during draw)
                     State.tempNote.length = newLen;
                     
-                    // Preview on Length Change (Use fixed pitch)
                     if (State.lastPreviewLength !== newLen) {
                          const fixedRow = Math.floor(State.tempNote.y / Config.GRID_H);
                          Audio.previewNote(fixedRow); 
                          State.lastPreviewLength = newLen;
                     }
                 }
-                else if (State.interactionMode === 'MOVE' && State.selectedNote) {
+                else if (State.interactionMode === 'MOVE' && State.selectedNotes.length === 1) {
+                    const note = State.selectedNotes[0];
                     const dx = pos.col - State.dragStartPos.x;
                     const dy = pos.row - State.dragStartPos.y;
-                    State.selectedNote.x = Math.max(0, State.dragStartNoteState.x + dx);
+                    note.x = Math.max(0, State.dragStartNoteState.x + dx);
                     const newY = (State.dragStartNoteState.y / Config.GRID_H + dy) * Config.GRID_H;
-                    State.selectedNote.y = Math.max(0, Math.min(newY, (12 * Config.OCTAVES * Config.GRID_H) - Config.GRID_H));
-                    const row = Math.floor(State.selectedNote.y / Config.GRID_H);
-                    State.selectedNote.octave = (Config.OCTAVES - 1 - Math.floor(row/12)) + Config.BASE_OCTAVE;
+                    note.y = Math.max(0, Math.min(newY, (12 * Config.OCTAVES * Config.GRID_H) - Config.GRID_H));
+                    const row = Math.floor(note.y / Config.GRID_H);
+                    note.octave = (Config.OCTAVES - 1 - Math.floor(row/12)) + Config.BASE_OCTAVE;
                     
-                    // Preview on Move (Pitch Change)
                     if (State.lastPreviewRow !== row) {
                         Audio.previewNote(row);
                         State.lastPreviewRow = row;
                     }
                 }
-                else if (State.interactionMode === 'RESIZE' && State.selectedNote) {
+                else if (State.interactionMode === 'RESIZE' && State.selectedNotes.length === 1) {
+                    const note = State.selectedNotes[0];
                     const dx = pos.col - State.dragStartPos.x;
                     const newLen = Math.max(1, State.dragStartNoteState.length + dx);
-                    State.selectedNote.length = newLen;
+                    note.length = newLen;
 
-                    // Preview on Resize (Length Change)
                     if (State.lastPreviewLength !== newLen) {
-                        const row = Math.floor(State.selectedNote.y / Config.GRID_H);
+                        const row = Math.floor(note.y / Config.GRID_H);
                         Audio.previewNote(row);
                         State.lastPreviewLength = newLen;
                     }
+                }
+                else if (State.interactionMode === 'MOVE_MULTI') {
+                    const dx = pos.col - State.dragStartPos.x;
+                    const dy = pos.row - State.dragStartPos.y;
+
+                    let minNewY = Infinity;
+                    let maxNewY = -Infinity;
+                    State.dragStartNotesState.forEach(orig => {
+                        const newY = orig.y + dy * Config.GRID_H;
+                        if (newY < minNewY) minNewY = newY;
+                        if (newY > maxNewY) maxNewY = newY;
+                    });
+                    
+                    const maxYLimit = (12 * Config.OCTAVES * Config.GRID_H) - Config.GRID_H;
+                    let adjustedDy = dy;
+                    if (minNewY < 0) {
+                        adjustedDy = dy - Math.floor(minNewY / Config.GRID_H);
+                    } else if (maxNewY > maxYLimit) {
+                        adjustedDy = dy - Math.ceil((maxNewY - maxYLimit) / Config.GRID_H);
+                    }
+
+                    State.selectedNotes.forEach((note, i) => {
+                        const orig = State.dragStartNotesState[i];
+                        note.x = Math.max(0, orig.x + dx);
+                        note.y = orig.y + adjustedDy * Config.GRID_H;
+                        const row = Math.floor(note.y / Config.GRID_H);
+                        note.octave = (Config.OCTAVES - 1 - Math.floor(row/12)) + Config.BASE_OCTAVE;
+                    });
                 }
                 View.render();
             },
@@ -2047,24 +2485,61 @@
                 State.isDraggingViewportHandle = false;
                 State.isResizingTimeline = false;
                 State.isTwoFingerScroll = false;
+                State.isKeyScroll = false;
                 
                 if (State.interactionMode === 'PAN') {
                     State.interactionMode = 'NONE';
                     return;
                 }
+                
+                if (State.interactionMode === 'BOX_SELECT') {
+                    const track = State.getCurrentTrack();
+                    const box = State.selectionBox;
+                    
+                    const scrollOffset = State.viewportStartCol * Config.GRID_W;
+                    const startXGrid = (Math.min(box.startX, box.currentX) - Config.KEY_WIDTH + scrollOffset) / Config.GRID_W;
+                    const endXGrid = (Math.max(box.startX, box.currentX) - Config.KEY_WIDTH + scrollOffset) / Config.GRID_W;
+                    
+                    const minY = Math.min(box.startY, box.currentY);
+                    const maxY = Math.max(box.startY, box.currentY);
+                    
+                    const selected = track.notes.filter(n => {
+                        const xOverlap = Math.max(0, Math.min(n.x + n.length, endXGrid) - Math.max(n.x, startXGrid)) > 0;
+                        const yOverlap = (n.y + Config.GRID_H > minY) && (n.y < maxY);
+                        return xOverlap && yOverlap;
+                    });
+                    
+                    if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                        selected.forEach(n => { if(!State.selectedNotes.includes(n)) State.selectedNotes.push(n); });
+                    } else {
+                        State.selectedNotes = selected;
+                    }
+                    
+                    State.selectionBox = null;
+                    State.interactionMode = 'NONE';
+                    View.refresh();
+                    return;
+                }
+
                 if (State.interactionMode === 'NONE') return;
 
                 if (State.interactionMode === 'DRAW' && State.tempNote) {
                     State.getCurrentTrack().notes.push(State.tempNote);
-                    State.selectedNote = State.tempNote;
+                    State.selectedNotes = [State.tempNote];
                     State.tempNote = null;
-                    Utils.removeOverlaps(State.selectedNote);
+                    Utils.removeOverlaps(State.selectedNotes[0]);
                     History.push();
                 }
                 else if (State.interactionMode === 'MOVE' || State.interactionMode === 'RESIZE') {
-                    if (State.selectedNote) {
+                    if (State.selectedNotes.length === 1) {
                         if (!State.isNoteMoved) UI.toggleSheet(true, 'sheet-note');
-                        else { Utils.removeOverlaps(State.selectedNote); History.push(); }
+                        else { Utils.removeOverlaps(State.selectedNotes[0]); History.push(); }
+                    }
+                }
+                else if (State.interactionMode === 'MOVE_MULTI') {
+                    if (State.isNoteMoved) {
+                        State.selectedNotes.forEach(n => Utils.removeOverlaps(n));
+                        History.push();
                     }
                 }
                 State.interactionMode = 'NONE';
@@ -2074,7 +2549,6 @@
             bindControls() {
                 document.getElementById('musicCanvas').addEventListener('contextmenu', e => e.preventDefault());
                 
-                // Track Moving
                 document.getElementById('sheetMoveTrackUpBtn').onclick = () => State.moveTrack(-1);
                 document.getElementById('sheetMoveTrackDownBtn').onclick = () => State.moveTrack(1);
 
@@ -2091,7 +2565,8 @@
                 });
                 
                 const updateNote = () => {
-                    const n = State.selectedNote; if(!n) return;
+                    const n = State.selectedNotes.length === 1 ? State.selectedNotes[0] : null; 
+                    if(!n) return;
                     const pInput = parseInt(document.getElementById('notePitch').value);
                     const oInput = parseInt(document.getElementById('noteOctave').value);
                     const octIndex = oInput - Config.BASE_OCTAVE;
@@ -2099,10 +2574,15 @@
                     n.y = (octaveRows + (11 - pInput)) * Config.GRID_H;
                     n.octave = oInput;
                     n.length = parseInt(document.getElementById('noteLength').value);
+                    
+                    const macroVal = document.getElementById('noteMacroSelect').value;
+                    if (macroVal) n.macro = macroVal;
+                    else delete n.macro;
+
                     Utils.removeOverlaps(n);
                     View.refresh(); History.push();
                 };
-                ['notePitch', 'noteOctave', 'noteLength'].forEach(id => document.getElementById(id).addEventListener('change', updateNote));
+                ['notePitch', 'noteOctave', 'noteLength', 'noteMacroSelect'].forEach(id => document.getElementById(id).addEventListener('change', updateNote));
 
                 document.getElementById('tempoInput').addEventListener('input', e => { document.getElementById('valBPM').textContent = e.target.value; });
                 document.getElementById('masterVolume').addEventListener('input', e => {
@@ -2117,6 +2597,19 @@
                 document.getElementById('fileInput').onchange = Storage.loadJson;
                 document.getElementById('undoBtn').onclick = () => History.undo();
                 document.getElementById('redoBtn').onclick = () => History.redo();
+                document.getElementById('rewindBtn').onclick = () => {
+                    if (State.isPlaying) {
+                        Audio.play(0);
+                    } else {
+                        State.playbackPosition = 0;
+                        State.playbackStartStep = 0;
+                        State.viewportStartCol = 0;
+                        State.playbackStartViewport = 0;
+                        View.refresh();
+                        View.updatePlaybackIndicators();
+                        View.updateTimeDisplay();
+                    }
+                };
                 document.getElementById('playBtn').onclick = () => { if (State.isPlaying) Audio.stop(false); else Audio.play(State.playbackPosition); };
                 document.getElementById('stopBtn').onclick = () => { Audio.stop(true); };
             }
@@ -2128,7 +2621,7 @@
                 Utils.download(mml, 'song.flmml', 'text/plain');
             },
             saveJson() {
-                const data = { tracks: State.tracks, bpm: document.getElementById('tempoInput').value, version: 2 };
+                const data = { tracks: State.tracks, macros: State.macros, bpm: document.getElementById('tempoInput').value, version: 2 };
                 Utils.download(JSON.stringify(data), 'song.json', 'application/json');
             },
             loadJson(e) {
@@ -2178,11 +2671,12 @@
 
                         if (data.tracks) {
                             State.tracks = data.tracks;
+                            State.macros = data.macros || [];
                             if (data.bpm) {
                                 document.getElementById('tempoInput').value = data.bpm;
                                 document.getElementById('valBPM').textContent = data.bpm;
                             }
-                            State.currentTrackIndex = 0; State.selectedNote = null; History.init(); View.refresh();
+                            State.currentTrackIndex = 0; State.selectedNotes = []; History.init(); View.refresh();
                         }
                     } catch(err) { 
                         console.error(err);
