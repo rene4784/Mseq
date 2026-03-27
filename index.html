@@ -451,6 +451,7 @@
             <div class="drawer-section">
                 <h4>File Actions</h4>
                 <button class="menu-item" id="exportFlmmlBtn">FlMML出力</button>
+                <button class="menu-item" id="copyFlmmlBtn">FlMMLをクリップボードにコピー</button>
                 <button class="menu-item" id="saveBtn">プロジェクト保存 (JSON)</button>
                 <button class="menu-item" id="loadBtn">読込 (JSON)</button>
                 <input type="file" id="fileInput" style="display: none;">
@@ -2592,6 +2593,7 @@
                 });
                 
                 document.getElementById('exportFlmmlBtn').onclick = Storage.exportMML;
+                document.getElementById('copyFlmmlBtn').onclick = Storage.copyMML;
                 document.getElementById('saveBtn').onclick = Storage.saveJson;
                 document.getElementById('loadBtn').onclick = () => document.getElementById('fileInput').click();
                 document.getElementById('fileInput').onchange = Storage.loadJson;
@@ -2619,6 +2621,27 @@
             exportMML() {
                 const mml = Audio.generateMML(0);
                 Utils.download(mml, 'song.flmml', 'text/plain');
+            },
+            copyMML() {
+                const mml = Audio.generateMML(0);
+                const textArea = document.createElement("textarea");
+                textArea.value = mml;
+                textArea.style.top = "0";
+                textArea.style.left = "0";
+                textArea.style.position = "fixed";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    const btn = document.getElementById('copyFlmmlBtn');
+                    const originalText = btn.textContent;
+                    btn.textContent = 'コピーしました！';
+                    setTimeout(() => btn.textContent = originalText, 2000);
+                } catch (err) {
+                    console.error('Fallback: Oops, unable to copy', err);
+                }
+                document.body.removeChild(textArea);
             },
             saveJson() {
                 const data = { tracks: State.tracks, macros: State.macros, bpm: document.getElementById('tempoInput').value, version: 2 };
